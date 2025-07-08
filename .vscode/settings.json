@@ -1,4 +1,16 @@
 {
   "nxConsole.generateAiAgentRules": true,
-  "cSpell.words": ["kadai", "nodenext"]
+  "cSpell.words": [
+    "kadai",
+    "libpeerconnection",
+    "njsproj",
+    "nodenext",
+    "ntvs",
+    "pycache",
+    "pytest",
+    "testem",
+    "venv",
+    "vite",
+    "vitest"
+  ]
 }

@@ -1,0 +1,26 @@
+{
+  "name": "ai-service",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "source ../../venv/bin/activate && python src/main.py",
+        "cwd": "apps/ai-service"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "source ../../venv/bin/activate && python -m pytest tests/",
+        "cwd": "apps/ai-service"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "source ../../venv/bin/activate && flake8 src/ tests/",
+        "cwd": "apps/ai-service"
+      }
+    }
+  }
+}

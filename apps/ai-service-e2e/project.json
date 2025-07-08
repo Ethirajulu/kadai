@@ -1,0 +1,12 @@
+{
+  "name": "ai-service-e2e",
+  "targets": {
+    "e2e": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "source ../../venv/bin/activate && python -m pytest test_e2e.py",
+        "cwd": "apps/ai-service-e2e"
+      }
+    }
+  }
+}

@@ -82,6 +82,7 @@ __pycache__/
 *.pyd
 .Python
 .coverage
+.pytest_cache
 
 # Docker
 *.dockerignore
