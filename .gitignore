@@ -97,11 +97,16 @@ test-output
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
 
-./docs
-
 # Task files
 # tasks.json
 # tasks/ 
 
 # Ignore documentation folder
 /docs/ 
+
+# Taskmaster, Claude, and Cursor
+.taskmaster/
+!.taskmaster/templates/
+!.taskmaster/docs/
+.claude/
+.cursor/ 
