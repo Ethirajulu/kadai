@@ -42,3 +42,58 @@ Thumbs.db
 .nx/workspace-data
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+node_modules/
+# Environment variables
+.env
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+
+# Task files
+# tasks.json
+# tasks/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Graph files
+graph.json
+
+# Test results and reports
+test-results/
+playwright-report/
+coverage/
+
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.coverage
+
+# Docker
+*.dockerignore
+Dockerfile.*
+
+# Next.js
+.next
+out
+
+test-output
