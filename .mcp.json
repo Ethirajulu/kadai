@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "nx-mcp": {
+      "command": "npx",
+      "args": ["nx-mcp@latest", "/Users/us/Documents/projects/active/kadai"]
+    },
+    "task-master-ai": {
+      "command": "npx",
+      "args": ["-y", "--package=task-master-ai", "task-master-ai"]
+    }
+  }
+}
