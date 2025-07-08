@@ -1,4 +1,8 @@
-# CLAUDE.md - AI Development Guide
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## AI Development Guide
 
 ## Project Overview
 
@@ -58,6 +62,11 @@ npx nx run-many -t serve --projects=ai-service,user-service --parallel=2
 npx nx test <project-name>       # Single project
 npx nx run-many -t test          # All projects
 npx nx test <project-name> --coverage  # With coverage
+
+# Linting and formatting
+npx nx lint <project-name>       # Lint single project
+npx nx format:check              # Check formatting
+npx nx format:write              # Fix formatting
 
 # Code generation
 npx nx g @nx/nest:app <service-name>    # NestJS service
@@ -258,6 +267,7 @@ gemini-cli analyze docs/ux/
 ## Task Completion Checklist
 
 - [ ] All tests pass (`npx nx test <service>`)
+- [ ] Linting passes (`npx nx lint <service>`)
 - [ ] 80% coverage achieved
 - [ ] Security review completed
 - [ ] Documentation updated
@@ -277,8 +287,25 @@ Payment: 9233, Notification: 9234, Broadcast: 9235, Analytics: 9236
 - Environment: `.env.example`
 - Shared types: `libs/shared-types/src/index.ts`
 
+### Build Commands
+
+```bash
+# Build specific service
+npx nx build <service-name>
+
+# Build all projects
+npx nx run-many -t build
+
+# TypeScript checking
+npx nx typecheck <service-name>
+
+# Sync project dependencies
+npx nx sync
+npx nx sync:check  # For CI validation
+```
+
 ### Project Status
 
 - **Phase**: Early setup and infrastructure
 - **Priority**: Service generation, Docker setup, CI/CD
-- **Tasks**: 10 main tasks, 64 subtasks planned
+- **Tasks**: Managed via Task Master AI
