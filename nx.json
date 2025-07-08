@@ -54,7 +54,6 @@
       },
       "exclude": [
         "apps/api-gateway-e2e/**/*",
-        "apps/user_service-e2e/**/*",
         "apps/product-service-e2e/**/*",
         "apps/user-service-e2e/**/*",
         "apps/order-service-e2e/**/*",

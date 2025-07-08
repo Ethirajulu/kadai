@@ -19,12 +19,6 @@
       "path": "./apps/api-gateway"
     },
     {
-      "path": "./apps/user_service-e2e"
-    },
-    {
-      "path": "./apps/user_service"
-    },
-    {
       "path": "./apps/product-service-e2e"
     },
     {
