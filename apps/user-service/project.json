@@ -1,0 +1,29 @@
+{
+  "name": "user-service",
+  "targets": {
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "user-service:build",
+        "runBuildTargetDependencies": false,
+        "inspect": "inspect",
+        "host": "0.0.0.0",
+        "port": 9230
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "user-service:build:development",
+          "inspect": "inspect",
+          "host": "0.0.0.0",
+          "port": 9230
+        },
+        "production": {
+          "buildTarget": "user-service:build:production",
+          "inspect": false
+        }
+      }
+    }
+  }
+}

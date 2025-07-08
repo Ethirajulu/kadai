@@ -1,0 +1,29 @@
+{
+  "name": "payment-service",
+  "targets": {
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "payment-service:build",
+        "runBuildTargetDependencies": false,
+        "inspect": "inspect",
+        "host": "0.0.0.0",
+        "port": 9233
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "payment-service:build:development",
+          "inspect": "inspect",
+          "host": "0.0.0.0",
+          "port": 9233
+        },
+        "production": {
+          "buildTarget": "payment-service:build:production",
+          "inspect": false
+        }
+      }
+    }
+  }
+}

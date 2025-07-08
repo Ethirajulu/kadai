@@ -1,0 +1,29 @@
+{
+  "name": "api-gateway",
+  "targets": {
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "api-gateway:build",
+        "runBuildTargetDependencies": false,
+        "inspect": "inspect",
+        "host": "0.0.0.0",
+        "port": 9229
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "api-gateway:build:development",
+          "inspect": "inspect",
+          "host": "0.0.0.0",
+          "port": 9229
+        },
+        "production": {
+          "buildTarget": "api-gateway:build:production",
+          "inspect": false
+        }
+      }
+    }
+  }
+}

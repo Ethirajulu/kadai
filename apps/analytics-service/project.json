@@ -1,0 +1,29 @@
+{
+  "name": "analytics-service",
+  "targets": {
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "analytics-service:build",
+        "runBuildTargetDependencies": false,
+        "inspect": "inspect",
+        "host": "0.0.0.0",
+        "port": 9236
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "analytics-service:build:development",
+          "inspect": "inspect",
+          "host": "0.0.0.0",
+          "port": 9236
+        },
+        "production": {
+          "buildTarget": "analytics-service:build:production",
+          "inspect": false
+        }
+      }
+    }
+  }
+}

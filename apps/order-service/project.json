@@ -1,0 +1,29 @@
+{
+  "name": "order-service",
+  "targets": {
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "order-service:build",
+        "runBuildTargetDependencies": false,
+        "inspect": "inspect",
+        "host": "0.0.0.0",
+        "port": 9232
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "order-service:build:development",
+          "inspect": "inspect",
+          "host": "0.0.0.0",
+          "port": 9232
+        },
+        "production": {
+          "buildTarget": "order-service:build:production",
+          "inspect": false
+        }
+      }
+    }
+  }
+}

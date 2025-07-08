@@ -1,0 +1,29 @@
+{
+  "name": "broadcast-service",
+  "targets": {
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "broadcast-service:build",
+        "runBuildTargetDependencies": false,
+        "inspect": "inspect",
+        "host": "0.0.0.0",
+        "port": 9235
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "broadcast-service:build:development",
+          "inspect": "inspect",
+          "host": "0.0.0.0",
+          "port": 9235
+        },
+        "production": {
+          "buildTarget": "broadcast-service:build:production",
+          "inspect": false
+        }
+      }
+    }
+  }
+}
