@@ -102,3 +102,6 @@ vitest.config.*.timestamp*
 # Task files
 # tasks.json
 # tasks/ 
+
+# Ignore documentation folder
+/docs/ 
