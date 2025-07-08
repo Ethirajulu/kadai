@@ -64,10 +64,6 @@ node_modules/
 *.sw?
 # OS specific
 
-# Task files
-# tasks.json
-# tasks/
-
 # TypeScript build info
 *.tsbuildinfo
 
@@ -101,4 +97,8 @@ test-output
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
 
-docs
+./docs
+
+# Task files
+# tasks.json
+# tasks/ 
