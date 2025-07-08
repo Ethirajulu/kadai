@@ -1,0 +1,56 @@
+{
+  "name": "@kadai/broadcast-service",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "name": "broadcast-service",
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "webpack-cli build",
+          "args": [
+            "--node-env=production"
+          ]
+        },
+        "configurations": {
+          "development": {
+            "args": [
+              "--node-env=development"
+            ]
+          }
+        }
+      },
+      "serve": {
+        "continuous": true,
+        "executor": "@nx/js:node",
+        "defaultConfiguration": "development",
+        "dependsOn": [
+          "build"
+        ],
+        "options": {
+          "buildTarget": "broadcast-service:build",
+          "runBuildTargetDependencies": false
+        },
+        "configurations": {
+          "development": {
+            "buildTarget": "broadcast-service:build:development"
+          },
+          "production": {
+            "buildTarget": "broadcast-service:build:production"
+          }
+        }
+      },
+      "test": {
+        "options": {
+          "passWithNoTests": true
+        }
+      }
+    },
+    "tags": [
+      "app",
+      "service",
+      "broadcast"
+    ]
+  }
+}

@@ -51,7 +51,18 @@
       "plugin": "@nx/jest/plugin",
       "options": {
         "targetName": "test"
-      }
+      },
+      "exclude": [
+        "apps/api-gateway-e2e/**/*",
+        "apps/user_service-e2e/**/*",
+        "apps/product-service-e2e/**/*",
+        "apps/user-service-e2e/**/*",
+        "apps/order-service-e2e/**/*",
+        "apps/payment-service-e2e/**/*",
+        "apps/notification-service-e2e/**/*",
+        "apps/broadcast-service-e2e/**/*",
+        "apps/analytics-service-e2e/**/*"
+      ]
     },
     {
       "plugin": "@nx/react/router-plugin",
@@ -77,6 +88,22 @@
         "buildDepsTargetName": "build-deps",
         "watchDepsTargetName": "watch-deps"
       }
+    },
+    {
+      "plugin": "@nx/webpack/plugin",
+      "options": {
+        "buildTargetName": "build",
+        "serveTargetName": "serve",
+        "previewTargetName": "preview",
+        "buildDepsTargetName": "build-deps",
+        "watchDepsTargetName": "watch-deps"
+      }
+    },
+    {
+      "plugin": "@nx/playwright/plugin",
+      "options": {
+        "targetName": "e2e"
+      }
     }
   ],
   "targetDefaults": {
@@ -93,6 +120,12 @@
     "@nx/react": {
       "library": {
         "unitTestRunner": "vitest"
+      }
+    },
+    "@nx/next": {
+      "application": {
+        "style": "tailwind",
+        "linter": "eslint"
       }
     }
   }
