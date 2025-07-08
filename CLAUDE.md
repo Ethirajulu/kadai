@@ -309,3 +309,15 @@ npx nx sync:check  # For CI validation
 - **Phase**: Early setup and infrastructure
 - **Priority**: Service generation, Docker setup, CI/CD
 - **Tasks**: Managed via Task Master AI
+
+## Important Development Constraints
+
+- Do what has been asked; nothing more, nothing less
+- NEVER create files unless they're absolutely necessary for achieving your goal
+- ALWAYS prefer editing an existing file to creating a new one
+- NEVER proactively create documentation files (*.md) or README files unless explicitly requested
+- When implementing features, always check existing patterns in the codebase first
+- Use TypeScript strict mode and maintain type safety across all services
+- Follow the established port assignments in the `.env.example` file
+- Ensure all new code includes appropriate error handling and logging
+- Maintain backward compatibility when modifying shared libraries
