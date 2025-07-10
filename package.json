@@ -2,7 +2,19 @@
   "name": "@kadai/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:reset": "prisma migrate reset",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "npx ts-node prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:pull": "prisma db pull"
+  },
+  "prisma": {
+    "seed": "npx ts-node prisma/seed.ts"
+  },
   "private": true,
   "dependencies": {
     "@nestjs/common": "^11.0.0",
