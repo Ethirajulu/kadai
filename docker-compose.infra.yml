@@ -22,13 +22,14 @@ services:
     image: mongo:7.0
     container_name: kadai-mongodb
     environment:
-      MONGO_INITDB_ROOT_USERNAME: kadai
-      MONGO_INITDB_ROOT_PASSWORD: kadai123
+      MONGO_INITDB_ROOT_USERNAME: admin # Application user is kadai
+      MONGO_INITDB_ROOT_PASSWORD: admin123 # Application password is kadai123
       MONGO_INITDB_DATABASE: kadai
     ports:
       - '27017:27017'
     volumes:
       - mongodb_data:/data/db
+      - ./docker/mongodb-init.js:/docker-entrypoint-initdb.d/mongodb-init.js:ro
     networks:
       - kadai-network
     healthcheck:

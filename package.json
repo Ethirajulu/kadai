@@ -10,7 +10,11 @@
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:pull": "prisma db pull"
+    "db:pull": "prisma db pull",
+    "mongo:setup": "./scripts/mongodb-setup.sh fresh",
+    "mongo:test": "./scripts/mongodb-setup.sh test",
+    "mongo:info": "./scripts/mongodb-setup.sh info",
+    "mongo:logs": "./scripts/mongodb-setup.sh logs"
   },
   "prisma": {
     "seed": "npx ts-node prisma/seed.ts"
