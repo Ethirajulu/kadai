@@ -4,7 +4,10 @@
     "addgroup",
     "adduser",
     "asyncio",
+    "autopopulate",
     "Buildx",
+    "chatsessions",
+    "conversationhistories",
     "healthcheck",
     "INITDB",
     "isready",
@@ -28,6 +31,7 @@
     "uvicorn",
     "venv",
     "vite",
-    "vitest"
+    "vitest",
+    "wtimeout"
   ]
 }

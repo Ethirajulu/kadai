@@ -110,4 +110,4 @@ vitest.config.*.timestamp*
 # tasks.json
 # tasks/ 
 
-/generated/prisma
+database/postgresql/generated/prisma
