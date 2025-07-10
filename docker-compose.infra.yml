@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kadai-postgres
+    environment:
+      POSTGRES_DB: kadai
+      POSTGRES_USER: kadai
+      POSTGRES_PASSWORD: kadai123
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kadai -d kadai']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  mongodb:
+    image: mongo:7.0
+    container_name: kadai-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: kadai
+      MONGO_INITDB_ROOT_PASSWORD: kadai123
+      MONGO_INITDB_DATABASE: kadai
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: kadai-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: kadai-qdrant
+    ports:
+      - '6333:6333'
+      - '6334:6334'
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6333/health']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: kadai-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: kadai
+      RABBITMQ_DEFAULT_PASS: kadai123
+      RABBITMQ_DEFAULT_VHOST: kadai
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  kadai-network:
+    driver: bridge
+    name: kadai-network
+
+volumes:
+  postgres_data:
+    name: kadai-postgres-data
+  mongodb_data:
+    name: kadai-mongodb-data
+  redis_data:
+    name: kadai-redis-data
+  qdrant_data:
+    name: kadai-qdrant-data
+  rabbitmq_data:
+    name: kadai-rabbitmq-data

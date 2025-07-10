@@ -1,0 +1,401 @@
+services:
+  # =============================================================================
+  # Infrastructure Services
+  # =============================================================================
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: kadai-postgres
+    environment:
+      POSTGRES_DB: kadai
+      POSTGRES_USER: kadai
+      POSTGRES_PASSWORD: kadai123
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kadai -d kadai']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: kadai-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: kadai
+      MONGO_INITDB_ROOT_PASSWORD: kadai123
+      MONGO_INITDB_DATABASE: kadai
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: kadai-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: kadai-qdrant
+    ports:
+      - '6333:6333'
+      - '6334:6334'
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6333/health']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # RabbitMQ Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: kadai-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: kadai
+      RABBITMQ_DEFAULT_PASS: kadai123
+      RABBITMQ_DEFAULT_VHOST: kadai
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - kadai-network
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # =============================================================================
+  # Application Services
+  # =============================================================================
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: kadai-api-gateway
+    ports:
+      - '3000:3000'
+      - '9229:9229'
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DEBUG_PORT=9229
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    volumes:
+      - ./apps/api-gateway:/app
+      - /app/node_modules
+    networks:
+      - kadai-network
+    command: ['node', '--inspect=0.0.0.0:9229', 'dist/main.js']
+    restart: unless-stopped
+
+  # User Service
+  user-service:
+    build:
+      context: .
+      dockerfile: apps/user-service/Dockerfile
+    container_name: kadai-user-service
+    ports:
+      - '3001:3001'
+      - '9230:9230'
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DEBUG_PORT=9230
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    volumes:
+      - ./apps/user-service:/app
+      - /app/node_modules
+    networks:
+      - kadai-network
+    command: ['node', '--inspect=0.0.0.0:9230', 'dist/main.js']
+    restart: unless-stopped
+
+  # Product Service
+  product-service:
+    build:
+      context: .
+      dockerfile: apps/product-service/Dockerfile
+    container_name: kadai-product-service
+    ports:
+      - '3002:3002'
+      - '9231:9231'
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - DEBUG_PORT=9231
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - mongodb
+      - redis
+      - rabbitmq
+    volumes:
+      - ./apps/product-service:/app
+      - /app/node_modules
+    networks:
+      - kadai-network
+    command: ['node', '--inspect=0.0.0.0:9231', 'dist/main.js']
+    restart: unless-stopped
+
+  # Order Service
+  order-service:
+    build:
+      context: .
+      dockerfile: apps/order-service/Dockerfile
+    container_name: kadai-order-service
+    ports:
+      - '3003:3003'
+      - '9232:9232'
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - DEBUG_PORT=9232
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    volumes:
+      - ./apps/order-service:/app
+      - /app/node_modules
+    networks:
+      - kadai-network
+    command: ['node', '--inspect=0.0.0.0:9232', 'dist/main.js']
+    restart: unless-stopped
+
+  # Payment Service
+  payment-service:
+    build:
+      context: .
+      dockerfile: apps/payment-service/Dockerfile
+    container_name: kadai-payment-service
+    ports:
+      - '3004:3004'
+      - '9233:9233'
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - DEBUG_PORT=9233
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    volumes:
+      - ./apps/payment-service:/app
+      - /app/node_modules
+    networks:
+      - kadai-network
+    command: ['node', '--inspect=0.0.0.0:9233', 'dist/main.js']
+    restart: unless-stopped
+
+  # Notification Service
+  notification-service:
+    build:
+      context: .
+      dockerfile: apps/notification-service/Dockerfile
+    container_name: kadai-notification-service
+    ports:
+      - '3005:3005'
+      - '9234:9234'
+    environment:
+      - NODE_ENV=development
+      - PORT=3005
+      - DEBUG_PORT=9234
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    volumes:
+      - ./apps/notification-service:/app
+      - /app/node_modules
+    networks:
+      - kadai-network
+    command: ['node', '--inspect=0.0.0.0:9234', 'dist/main.js']
+    restart: unless-stopped
+
+  # Broadcast Service
+  broadcast-service:
+    build:
+      context: .
+      dockerfile: apps/broadcast-service/Dockerfile
+    container_name: kadai-broadcast-service
+    ports:
+      - '3006:3006'
+      - '9235:9235'
+    environment:
+      - NODE_ENV=development
+      - PORT=3006
+      - DEBUG_PORT=9235
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    volumes:
+      - ./apps/broadcast-service:/app
+      - /app/node_modules
+    networks:
+      - kadai-network
+    command: ['node', '--inspect=0.0.0.0:9235', 'dist/main.js']
+    restart: unless-stopped
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: .
+      dockerfile: apps/analytics-service/Dockerfile
+    container_name: kadai-analytics-service
+    ports:
+      - '3007:3007'
+      - '9236:9236'
+    environment:
+      - NODE_ENV=development
+      - PORT=3007
+      - DEBUG_PORT=9236
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - mongodb
+      - redis
+      - rabbitmq
+    volumes:
+      - ./apps/analytics-service:/app
+      - /app/node_modules
+    networks:
+      - kadai-network
+    command: ['node', '--inspect=0.0.0.0:9236', 'dist/main.js']
+    restart: unless-stopped
+
+  # AI Service (Python FastAPI)
+  ai-service:
+    build:
+      context: .
+      dockerfile: apps/ai-service/Dockerfile
+    container_name: kadai-ai-service
+    ports:
+      - '8000:8000'
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=development
+    env_file:
+      - .env
+    depends_on:
+      - qdrant
+      - redis
+      - rabbitmq
+    volumes:
+      - ./apps/ai-service:/app
+      - ./venv:/venv
+    networks:
+      - kadai-network
+    command:
+      [
+        'python',
+        '-m',
+        'uvicorn',
+        'main:app',
+        '--host',
+        '0.0.0.0',
+        '--port',
+        '8000',
+        '--reload',
+      ]
+    restart: unless-stopped
+
+  # Seller Dashboard (Next.js)
+  seller-dashboard:
+    build:
+      context: .
+      dockerfile: apps/seller-dashboard/Dockerfile
+    container_name: kadai-seller-dashboard
+    ports:
+      - '4200:4200'
+    environment:
+      - NODE_ENV=development
+      - PORT=4200
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    env_file:
+      - .env
+    depends_on:
+      - api-gateway
+    volumes:
+      - ./apps/seller-dashboard:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - kadai-network
+    command: ['npm', 'run', 'dev']
+    restart: unless-stopped
+
+# =============================================================================
+# Networks and Volumes
+# =============================================================================
+networks:
+  kadai-network:
+    driver: bridge
+    name: kadai-network
+
+volumes:
+  postgres_data:
+    name: kadai-postgres-data
+  mongodb_data:
+    name: kadai-mongodb-data
+  redis_data:
+    name: kadai-redis-data
+  qdrant_data:
+    name: kadai-qdrant-data
+  rabbitmq_data:
+    name: kadai-rabbitmq-data
