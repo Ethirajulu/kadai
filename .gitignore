@@ -110,3 +110,5 @@ vitest.config.*.timestamp*
 # Task files
 # tasks.json
 # tasks/ 
+
+/generated/prisma

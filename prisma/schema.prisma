@@ -1,0 +1,186 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User management
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  phone     String?  @unique
+  name      String
+  role      UserRole @default(CUSTOMER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  sellerProfile SellerProfile?
+  orders        Order[]
+  sessions      UserSession[]
+
+  @@map("users")
+}
+
+model SellerProfile {
+  id          String  @id @default(uuid())
+  userId      String  @unique
+  businessName String
+  businessType String
+  description String?
+  isVerified  Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@map("seller_profiles")
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String
+  sessionId String   @unique
+  isActive  Boolean  @default(true)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+// Product management
+model Product {
+  id          String   @id @default(uuid())
+  sellerId    String
+  name        String
+  description String?
+  price       Decimal
+  category    String
+  isActive    Boolean  @default(true)
+  stockCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  seller     SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@map("products")
+}
+
+// Order management
+model Order {
+  id          String      @id @default(uuid())
+  customerId  String
+  totalAmount Decimal
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  customer   User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  payments   Payment[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Decimal
+  createdAt DateTime @default(now())
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
+
+// Payment management
+model Payment {
+  id            String        @id @default(uuid())
+  orderId       String
+  amount        Decimal
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String
+  transactionId String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+// System metadata
+model SystemMetadata {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_metadata")
+}
+
+// Task management (for Task Master AI)
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus @default(PENDING)
+  priority    String     @default("medium")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("tasks")
+}
+
+// Enums
+enum UserRole {
+  CUSTOMER
+  SELLER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
