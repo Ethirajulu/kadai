@@ -8,6 +8,23 @@ jest.mock('./postgresql/generated/prisma', () => ({
   })),
 }));
 
+// Mock Redis
+jest.mock('ioredis', () => {
+  return {
+    __esModule: true,
+    default: jest.fn().mockImplementation(() => ({
+      ping: jest.fn().mockResolvedValue('PONG'),
+      quit: jest.fn().mockResolvedValue('OK'),
+      on: jest.fn(),
+    })),
+    Cluster: jest.fn().mockImplementation(() => ({
+      ping: jest.fn().mockResolvedValue('PONG'),
+      quit: jest.fn().mockResolvedValue('OK'),
+      on: jest.fn(),
+    })),
+  };
+});
+
 describe('DatabaseConfigModule', () => {
   it('should be defined', () => {
     expect(DatabaseConfigModule).toBeDefined();
@@ -25,7 +42,7 @@ describe('DatabaseConfigModule', () => {
     expect(exports).toBeDefined();
     expect(Array.isArray(imports)).toBe(true);
     expect(Array.isArray(exports)).toBe(true);
-    expect(imports.length).toBe(2); // MongodbConfigModule, PostgresqlConfigModule
-    expect(exports.length).toBe(2); // MongodbConfigModule, PostgresqlConfigModule
+    expect(imports.length).toBe(3); // MongodbConfigModule, PostgresqlConfigModule, RedisConfigModule
+    expect(exports.length).toBe(3); // MongodbConfigModule, PostgresqlConfigModule, RedisConfigModule
   });
 });
