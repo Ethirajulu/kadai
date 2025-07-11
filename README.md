@@ -1,90 +1,109 @@
-# Kadai
+# Kadai - AI Sales Assistant Platform
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+A multimodal, multilingual AI sales assistant platform for conversational commerce in India.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
+## 🚀 Quick Development Setup
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+### Complete Environment Setup
 
-## Finish your remote caching setup
+```bash
+# Clone and setup
+git clone <repository-url>
+cd kadai
+pnpm install
 
-[Click here to finish setting up your workspace!](https://cloud.nx.app/connect/pgz1JnP3jV)
+# Setup development environment (infrastructure + databases)
+pnpm run dev:setup
 
+# Test all connections
+pnpm run dev:test
 
-## Generate a library
-
-```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
+# Check service status
+pnpm run dev:status
 ```
 
-## Run tasks
+### Individual Service Management
 
-To build the library use:
+```bash
+# MongoDB only
+pnpm run mongo:setup
+pnpm run mongo:test
 
-```sh
-npx nx build pkg1
+# PostgreSQL schema
+pnpm run db:migrate
+
+# Start a service
+nx serve api-gateway
 ```
 
-To run any task with Nx use:
+### Available Scripts
 
-```sh
-npx nx <target> <project-name>
-```
+- `pnpm run dev:setup` - Complete fresh setup (infrastructure + databases)
+- `pnpm run dev:test` - Test all service connections
+- `pnpm run dev:status` - Show status of all services
+- `pnpm run dev:down` - Stop all services
+- `pnpm run dev:cleanup` - Stop and remove all services and volumes
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+## Architecture
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Built as a microservices architecture with:
 
-## Versioning and releasing
+- **Frontend**: Next.js (Seller Dashboard)
+- **Backend**: NestJS services + Python AI service
+- **Databases**: PostgreSQL, MongoDB, Redis, Qdrant
+- **Infrastructure**: Docker containers with Nx monorepo
 
-To version and release the library use
+## Development
 
-```
-npx nx release
-```
+This project uses:
 
-Pass `--dry-run` to see what would happen without actually releasing the library.
+- **Nx Monorepo** for workspace management
+- **pnpm** as package manager
+- **Node.js 22.16.0** for JavaScript services
+- **Python 3.x** for AI services
+- **Docker** for infrastructure
 
-[Learn more about Nx release &raquo;](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+For detailed documentation, see the `docs/` folder.
 
-## Keep TypeScript project references up to date
+## Services
 
-Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
+### Backend Services (NestJS)
 
-To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
+- `api-gateway` - Main API gateway (port 3000)
+- `user-service` - User management (port 3001)
+- `product-service` - Product catalog (port 3002)
+- `order-service` - Order processing (port 3003)
+- `payment-service` - Payment handling (port 3004)
+- `notification-service` - Notifications (port 3005)
+- `analytics-service` - Analytics (port 3006)
+- `broadcast-service` - Broadcasting (port 3007)
 
-```sh
-npx nx sync
-```
+### AI Service (Python)
 
-You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
+- `ai-service` - AI processing (port 8000)
 
-```sh
-npx nx sync:check
-```
+### Frontend
 
-[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
+- `seller-dashboard` - Seller interface (Next.js)
 
+## Database Connections
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### PostgreSQL
 
-## Install Nx Console
+- **URL**: `postgresql://kadai:kadai123@localhost:5432/kadai`
+- **Usage**: User data, orders, products, payments
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+### MongoDB
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- **URL**: `mongodb://kadai:kadai123@localhost:27017/kadai`
+- **Usage**: Chat logs, conversation histories, session data
 
-## Useful links
+### Redis
 
-Learn more:
+- **URL**: `redis://localhost:6379`
+- **Usage**: Caching, session management
 
-- [Learn more about this workspace setup](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### Qdrant
 
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- **URL**: `http://localhost:6333`
+- **Usage**: Vector storage for AI embeddings

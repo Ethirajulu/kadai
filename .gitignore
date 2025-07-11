@@ -111,4 +111,4 @@ vitest.config.*.timestamp*
 # tasks.json
 # tasks/ 
 
-libs/database-config/database/postgresql/generated/prisma
+libs/database-config/src/postgresql/generated/prisma
