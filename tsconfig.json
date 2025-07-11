@@ -67,7 +67,7 @@
       "path": "./apps/seller-dashboard"
     },
     {
-      "path": "./libs/mongodb-config"
+      "path": "./libs/database-config"
     }
   ]
 }

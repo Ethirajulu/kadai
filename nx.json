@@ -29,7 +29,7 @@
           "watchDepsName": "watch-deps"
         }
       },
-      "exclude": ["libs/mongodb-config/*"]
+      "exclude": ["libs/database-config/*"]
     },
     {
       "plugin": "@nx/next/plugin",
@@ -107,7 +107,7 @@
     },
     {
       "plugin": "@nx/js/typescript",
-      "include": ["libs/mongodb-config/*"],
+      "include": ["libs/database-config/*"],
       "options": {
         "typecheck": {
           "targetName": "typecheck"

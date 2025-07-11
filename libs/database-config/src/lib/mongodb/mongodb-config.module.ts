@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -15,23 +13,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           connection.plugin(require('mongoose-autopopulate'));
           return connection;
         },
-        // Connection pooling configuration
         maxPoolSize: 10,
         serverSelectionTimeoutMS: 5000,
         socketTimeoutMS: 45000,
-        bufferMaxEntries: 0,
-        // Replica set configuration
-        replicaSet: process.env.MONGODB_REPLICA_SET,
-        readPreference: 'secondary',
-        writeConcern: {
-          w: 'majority',
-          j: true,
-          wtimeout: 1000,
-        },
+        ...(process.env.MONGODB_REPLICA_SET && {
+          replicaSet: process.env.MONGODB_REPLICA_SET,
+          readPreference: 'secondary',
+          writeConcern: { w: 'majority', j: true, wtimeout: 1000 }
+        })
       }),
-      inject: [ConfigService],
-    }),
+      inject: [ConfigService]
+    })
   ],
-  exports: [MongooseModule],
+  exports: [MongooseModule]
 })
 export class MongodbConfigModule {}
