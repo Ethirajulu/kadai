@@ -3,20 +3,20 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "db:migrate": "prisma migrate dev --schema=libs/database-config/src/postgresql/schemas/schema.prisma",
-    "db:migrate:reset": "prisma migrate reset --schema=libs/database-config/src/postgresql/schemas/schema.prisma",
-    "db:migrate:deploy": "prisma migrate deploy --schema=libs/database-config/src/postgresql/schemas/schema.prisma",
-    "db:seed": "npx ts-node libs/database-config/src/postgresql/schemas/seed.ts",
-    "db:studio": "prisma studio --schema=libs/database-config/src/postgresql/schemas/schema.prisma",
-    "db:generate": "prisma generate --schema=libs/database-config/src/postgresql/schemas/schema.prisma",
-    "db:push": "prisma db push --schema=libs/database-config/src/postgresql/schemas/schema.prisma",
-    "db:pull": "prisma db pull --schema=libs/database-config/src/postgresql/schemas/schema.prisma",
-    "mongo:migrate:up": "migrate-mongo up -f libs/database-config/src/mongodb/migrations/migrate-mongo-config.js",
-    "mongo:migrate:down": "migrate-mongo down -f libs/database-config/src/mongodb/migrations/migrate-mongo-config.js",
-    "mongo:migrate:status": "migrate-mongo status -f libs/database-config/src/mongodb/migrations/migrate-mongo-config.js",
-    "mongo:migrate:create": "migrate-mongo create -f libs/database-config/src/mongodb/migrations/migrate-mongo-config.js",
-    "mongo:seed": "node libs/database-config/src/mongodb/migrations/scripts/seed.js",
-    "mongo:seed:force": "node libs/database-config/src/mongodb/migrations/scripts/seed.js --force",
+    "db:migrate": "prisma migrate dev --schema=libs/database-config/src/postgresql/schema.prisma",
+    "db:migrate:reset": "prisma migrate reset --schema=libs/database-config/src/postgresql/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema=libs/database-config/src/postgresql/schema.prisma",
+    "db:seed": "npx ts-node libs/database-config/src/postgresql/seed.ts",
+    "db:studio": "prisma studio --schema=libs/database-config/src/postgresql/schema.prisma",
+    "db:generate": "prisma generate --schema=libs/database-config/src/postgresql/schema.prisma",
+    "db:push": "prisma db push --schema=libs/database-config/src/postgresql/schema.prisma",
+    "db:pull": "prisma db pull --schema=libs/database-config/src/postgresql/schema.prisma",
+    "mongo:migrate:up": "migrate-mongo up -f libs/database-config/src/mongodb/migrate-mongo-config.js",
+    "mongo:migrate:down": "migrate-mongo down -f libs/database-config/src/mongodb/migrate-mongo-config.js",
+    "mongo:migrate:status": "migrate-mongo status -f libs/database-config/src/mongodb/migrate-mongo-config.js",
+    "mongo:migrate:create": "migrate-mongo create -f libs/database-config/src/mongodb/migrate-mongo-config.js",
+    "mongo:seed": "node libs/database-config/src/mongodb/seed.js",
+    "mongo:seed:force": "node libs/database-config/src/mongodb/seed.js --force",
     "mongo:setup": "./scripts/mongodb-setup.sh fresh",
     "mongo:test": "./scripts/mongodb-setup.sh test",
     "mongo:info": "./scripts/mongodb-setup.sh info",
@@ -29,7 +29,7 @@
     "dev:logs": "./scripts/setup-dev.sh logs"
   },
   "prisma": {
-    "seed": "npx ts-node libs/database-config/src/postgresql/schemas/seed.ts"
+    "seed": "npx ts-node libs/database-config/src/postgresql/seed.ts"
   },
   "private": true,
   "dependencies": {
