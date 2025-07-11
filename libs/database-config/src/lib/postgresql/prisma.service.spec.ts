@@ -8,7 +8,7 @@ const mockPrismaClient = {
   cleanDb: jest.fn(),
 };
 
-jest.mock('../../../../../database/postgresql/generated/prisma', () => ({
+jest.mock('../../../database/postgresql/generated/prisma', () => ({
   PrismaClient: jest.fn().mockImplementation(() => mockPrismaClient),
 }));
 

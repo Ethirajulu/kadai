@@ -1,7 +1,7 @@
 import { DatabaseConfigModule } from './database-config.module';
 
 // Mock PrismaClient
-jest.mock('../../../../database/postgresql/generated/prisma', () => ({
+jest.mock('../../database/postgresql/generated/prisma', () => ({
   PrismaClient: jest.fn().mockImplementation(() => ({
     $connect: jest.fn(),
     $disconnect: jest.fn(),
