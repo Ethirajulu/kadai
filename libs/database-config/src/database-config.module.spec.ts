@@ -42,7 +42,7 @@ describe('DatabaseConfigModule', () => {
     expect(exports).toBeDefined();
     expect(Array.isArray(imports)).toBe(true);
     expect(Array.isArray(exports)).toBe(true);
-    expect(imports.length).toBe(3); // MongodbConfigModule, PostgresqlConfigModule, RedisConfigModule
-    expect(exports.length).toBe(3); // MongodbConfigModule, PostgresqlConfigModule, RedisConfigModule
+    expect(imports.length).toBe(4); // MongodbConfigModule, PostgresqlConfigModule, RedisConfigModule, QdrantConfigModule
+    expect(exports.length).toBe(5); // MongodbConfigModule, PostgresqlConfigModule, RedisConfigModule, QdrantConfigModule, DatabaseHealthCheckService
   });
 });

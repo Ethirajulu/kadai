@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { MongodbService } from './mongodb.service';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { MongooseModule } from '@nestjs/mongoose';
       inject: [ConfigService]
     })
   ],
-  exports: [MongooseModule]
+  providers: [MongodbService],
+  exports: [MongooseModule, MongodbService]
 })
 export class MongodbConfigModule {}

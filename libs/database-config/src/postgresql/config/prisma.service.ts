@@ -43,4 +43,38 @@ export class PrismaService
       models.map((model) => (this as any)[model].deleteMany())
     );
   }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this.$queryRaw`SELECT 1`;
+      return true;
+    } catch (error) {
+      console.error('PostgreSQL health check failed:', error);
+      return false;
+    }
+  }
+
+  async getConnectionInfo(): Promise<{
+    connected: boolean;
+    version: string;
+    database: string;
+  }> {
+    try {
+      const result = await this.$queryRaw<Array<{ version: string }>>`SELECT version()`;
+      const dbResult = await this.$queryRaw<Array<{ current_database: string }>>`SELECT current_database()`;
+      
+      return {
+        connected: true,
+        version: result[0]?.version || 'unknown',
+        database: dbResult[0]?.current_database || 'unknown',
+      };
+    } catch (error) {
+      console.error('Failed to get PostgreSQL connection info:', error);
+      return {
+        connected: false,
+        version: 'unknown',
+        database: 'unknown',
+      };
+    }
+  }
 }

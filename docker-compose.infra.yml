@@ -3,28 +3,32 @@ services:
     image: postgres:16-alpine
     container_name: kadai-postgres
     environment:
-      POSTGRES_DB: kadai
-      POSTGRES_USER: kadai
-      POSTGRES_PASSWORD: kadai123
+      POSTGRES_DB: ${DB_NAME:-kadai}
+      POSTGRES_USER: ${DB_USERNAME:-kadai}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-kadai123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     ports:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - kadai-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U kadai -d kadai']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-kadai} -d ${DB_NAME:-kadai}']
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
   mongodb:
     image: mongo:7.0
     container_name: kadai-mongodb
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin # Application user is kadai
-      MONGO_INITDB_ROOT_PASSWORD: admin123 # Application password is kadai123
-      MONGO_INITDB_DATABASE: kadai
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-admin123}
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-kadai}
     ports:
       - '27017:27017'
     volumes:
@@ -37,10 +41,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     container_name: kadai-redis
+    command: redis-server --appendonly yes
     ports:
       - '6379:6379'
     volumes:
@@ -52,6 +59,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 10s
+    restart: unless-stopped
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -61,6 +70,10 @@ services:
       - '6334:6334'
     volumes:
       - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__LOG_LEVEL: INFO
     networks:
       - kadai-network
     healthcheck:
@@ -68,14 +81,17 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: kadai-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: kadai
-      RABBITMQ_DEFAULT_PASS: kadai123
-      RABBITMQ_DEFAULT_VHOST: kadai
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-kadai}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-kadai123}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-kadai}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-kadai-secret-cookie}
     ports:
       - '5672:5672'
       - '15672:15672'
@@ -88,6 +104,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
 networks:
   kadai-network:
