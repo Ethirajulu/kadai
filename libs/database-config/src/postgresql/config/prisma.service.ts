@@ -3,7 +3,10 @@ import { PrismaClient } from '../generated/prisma';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor(private configService: ConfigService) {
     super({
       datasources: {
@@ -11,7 +14,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           url: configService.get<string>('DATABASE_URL'),
         },
       },
-      log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
+      log:
+        process.env.NODE_ENV === 'development'
+          ? ['query', 'info', 'warn', 'error']
+          : ['error'],
     });
   }
 
@@ -29,9 +35,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     }
 
     const models = Reflect.ownKeys(this).filter(
-      (key) => key[0] !== '_' && key !== 'constructor'
+      (key) =>
+        typeof key === 'string' && key[0] !== '_' && key !== 'constructor'
     );
 
-    return Promise.all(models.map((model) => (this as any)[model].deleteMany()));
+    return Promise.all(
+      models.map((model) => (this as any)[model].deleteMany())
+    );
   }
 }

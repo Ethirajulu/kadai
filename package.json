@@ -40,6 +40,7 @@
     "@nestjs/platform-express": "^11.0.0",
     "@nx/nest": "21.2.2",
     "@prisma/client": "^6.11.1",
+    "@qdrant/js-client-rest": "^1.14.1",
     "@types/ioredis": "^5.0.0",
     "axios": "^1.6.0",
     "dotenv": "^17.2.0",
