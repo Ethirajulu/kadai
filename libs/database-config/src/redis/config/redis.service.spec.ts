@@ -29,7 +29,6 @@ jest.mock('ioredis', () => {
 
 describe('RedisService', () => {
   let service: RedisService;
-  let configService: ConfigService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -38,8 +37,8 @@ describe('RedisService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((key: string, defaultValue?: any) => {
-              const config = {
+            get: jest.fn((key: string, defaultValue?: unknown) => {
+              const config: Record<string, unknown> = {
                 REDIS_HOST: 'localhost',
                 REDIS_PORT: 6379,
                 REDIS_PASSWORD: undefined,
@@ -60,7 +59,6 @@ describe('RedisService', () => {
     }).compile();
 
     service = module.get<RedisService>(RedisService);
-    configService = module.get<ConfigService>(ConfigService);
   });
 
   it('should be defined', () => {

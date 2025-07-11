@@ -24,7 +24,7 @@ export interface RedisConfig {
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
-  private client: Redis | Cluster;
+  private client!: Redis | Cluster;
   private readonly config: RedisConfig;
 
   // Cache key configurations with TTL strategies
@@ -66,16 +66,15 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   private async connect(): Promise<void> {
     try {
-      if (this.config.cluster && this.config.clusterNodes.length > 0) {
+      if (this.config.cluster && this.config.clusterNodes && this.config.clusterNodes.length > 0) {
         this.client = new Cluster(this.config.clusterNodes, {
           redisOptions: {
             password: this.config.password,
             connectTimeout: this.config.connectTimeout,
             commandTimeout: this.config.commandTimeout,
             keyPrefix: this.config.keyPrefix,
+            maxRetriesPerRequest: this.config.maxRetriesPerRequest,
           },
-          retryDelayOnFailover: this.config.retryDelayOnFailover,
-          maxRetriesPerRequest: this.config.maxRetriesPerRequest,
         });
       } else {
         this.client = new Redis({
@@ -86,7 +85,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
           connectTimeout: this.config.connectTimeout,
           commandTimeout: this.config.commandTimeout,
           keyPrefix: this.config.keyPrefix,
-          retryDelayOnFailover: this.config.retryDelayOnFailover,
           maxRetriesPerRequest: this.config.maxRetriesPerRequest,
         });
       }
@@ -119,7 +117,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   // Cache operations with key naming conventions
-  async set(keyType: string, key: string, value: any, customTtl?: number): Promise<void> {
+  async set(keyType: string, key: string, value: unknown, customTtl?: number): Promise<void> {
     const cacheConfig = this.cacheKeys[keyType];
     if (!cacheConfig) {
       throw new Error(`Unknown cache key type: ${keyType}`);
@@ -255,7 +253,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   // Get cache statistics
-  async getCacheStats(): Promise<any> {
+  async getCacheStats(): Promise<{
+    connected: boolean;
+    info: Record<string, string>;
+  }> {
     const info = await this.getInfo();
     const stats = {
       connected: await this.healthCheck(),
