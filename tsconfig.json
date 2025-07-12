@@ -68,6 +68,9 @@
     },
     {
       "path": "./libs/database-config"
+    },
+    {
+      "path": "./libs/test-db-config"
     }
   ]
 }
