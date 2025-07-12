@@ -12,6 +12,7 @@
     "INITDB",
     "isready",
     "kadai",
+    "keyspace",
     "libpeerconnection",
     "Millis",
     "mongosh",

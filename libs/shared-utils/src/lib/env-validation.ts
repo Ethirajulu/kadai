@@ -201,9 +201,10 @@ export type FrontendEnv = z.infer<typeof frontendEnvSchema>;
  */
 export function validateEnv<T extends z.ZodType>(
   schema: T,
-  env: Record<string, string | undefined> = process.env
+  env?: Record<string, string | undefined>
 ): z.infer<T> {
-  const result = schema.safeParse(env);
+  const envToValidate = env || process.env;
+  const result = schema.safeParse(envToValidate);
 
   if (!result.success) {
     const errors = result.error.issues.map(
@@ -249,8 +250,12 @@ function getServiceSchema(serviceName: string): z.ZodSchema {
 /**
  * Check if all required environment variables are present
  */
-export function checkRequiredEnvVars(requiredVars: string[]): void {
-  const missing = requiredVars.filter((varName) => !process.env[varName]);
+export function checkRequiredEnvVars(
+  requiredVars: string[],
+  env?: Record<string, string | undefined>
+): void {
+  const envToCheck = env || process.env;
+  const missing = requiredVars.filter((varName) => !envToCheck[varName]);
 
   if (missing.length > 0) {
     throw new Error(
@@ -262,8 +267,8 @@ export function checkRequiredEnvVars(requiredVars: string[]): void {
 /**
  * Get environment-specific configuration
  */
-export function getEnvConfig() {
-  const env = process.env.NODE_ENV || 'development';
+export function getEnvConfig(nodeEnv?: string) {
+  const env = nodeEnv || process.env.NODE_ENV || 'development';
 
   return {
     isDevelopment: env === 'development',

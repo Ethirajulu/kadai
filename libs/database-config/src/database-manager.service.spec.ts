@@ -147,9 +147,12 @@ describe('DatabaseManager', () => {
       redisService.healthCheck.mockResolvedValue(true);
       qdrantService.healthCheck.mockResolvedValue(true);
 
+      // Override config to reduce retry attempts for faster testing
+      service.updateConfig({ reconnectAttempts: 2, reconnectDelay: 100 });
+
       // Act & Assert
       await expect(service.onModuleInit()).rejects.toThrow();
-    });
+    }, 10000); // Reduce timeout since we're using fewer retries
   });
 
   describe('Connection Status', () => {
@@ -184,7 +187,9 @@ describe('DatabaseManager', () => {
     it('should handle health check errors gracefully', async () => {
       // Arrange
       prismaService.healthCheck.mockResolvedValue(true);
-      mongodbService.healthCheck.mockRejectedValue(new Error('Health check failed'));
+      mongodbService.healthCheck.mockRejectedValue(
+        new Error('Health check failed')
+      );
       redisService.healthCheck.mockResolvedValue(true);
       qdrantService.healthCheck.mockResolvedValue(true);
 
@@ -231,6 +236,7 @@ describe('DatabaseManager', () => {
     it('should throw error when accessing services before initialization', () => {
       // Arrange - create new uninitialized service
       const uninitializedService = new DatabaseManager(
+        module.get(ConfigService),
         prismaService,
         mongodbService,
         redisService,
@@ -294,10 +300,10 @@ describe('DatabaseManager', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'test';
 
-      prismaService.cleanDb.mockResolvedValue(undefined);
-      mongodbService.cleanDb.mockResolvedValue(undefined);
-      redisService.flushDb.mockResolvedValue(undefined);
-      qdrantService.cleanDb.mockResolvedValue(undefined);
+      prismaService.cleanDb.mockResolvedValue([]);
+      mongodbService.cleanDb.mockResolvedValue();
+      redisService.flushDb.mockResolvedValue();
+      qdrantService.cleanDb.mockResolvedValue();
 
       try {
         // Act
@@ -359,13 +365,17 @@ describe('DatabaseManager', () => {
 
     it('should handle shutdown errors gracefully', async () => {
       // Arrange
-      prismaService.onModuleDestroy.mockRejectedValue(new Error('Shutdown error'));
+      prismaService.onModuleDestroy.mockRejectedValue(
+        new Error('Shutdown error')
+      );
       mongodbService.onModuleDestroy.mockResolvedValue(undefined);
       redisService.onModuleDestroy.mockResolvedValue(undefined);
       qdrantService.onModuleDestroy.mockResolvedValue(undefined);
 
       // Act & Assert
-      await expect(service.gracefulShutdown()).rejects.toThrow('Shutdown error');
+      await expect(service.gracefulShutdown()).rejects.toThrow(
+        'Shutdown error'
+      );
     });
   });
 

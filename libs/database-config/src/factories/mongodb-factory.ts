@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { MongodbService } from '../mongodb/config/mongodb.service';
 import { faker } from '@faker-js/faker';
 import { ObjectId } from 'mongodb';
@@ -45,7 +46,10 @@ export interface MongoDBTestAnalyticsEvent {
 }
 
 export class MongoDBTestDataFactory {
-  constructor(private mongodbService: MongodbService) {}
+  constructor(
+    private mongodbService: MongodbService,
+    private configService: ConfigService
+  ) {}
 
   /**
    * Generate test message data
@@ -254,7 +258,7 @@ export class MongoDBTestDataFactory {
     messages: MongoDBTestMessage[];
     analytics: MongoDBTestAnalyticsEvent[];
   }> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot seed test data in production environment');
     }
 
@@ -361,7 +365,7 @@ export class MongoDBTestDataFactory {
    * Clean all test data from MongoDB
    */
   async cleanAllTestData(): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean test data in production environment');
     }
 
@@ -372,7 +376,7 @@ export class MongoDBTestDataFactory {
    * Clean specific collections
    */
   async cleanCollections(collectionNames: string[]): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean test data in production environment');
     }
 

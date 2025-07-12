@@ -229,7 +229,7 @@ export class QdrantService implements OnModuleInit, OnModuleDestroy {
   }
 
   async cleanDb(): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean database in production environment');
     }
 

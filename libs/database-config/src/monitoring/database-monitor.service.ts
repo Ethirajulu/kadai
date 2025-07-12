@@ -1,6 +1,15 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DatabaseManager } from '../database-manager.service';
-import { DatabaseHealthCheckService, OverallHealthStatus } from '../health-check.service';
+import {
+  DatabaseHealthCheckService,
+  OverallHealthStatus,
+} from '../health-check.service';
 
 export interface DatabaseMetrics {
   timestamp: Date;
@@ -70,26 +79,44 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private databaseManager: DatabaseManager,
-    private healthCheckService: DatabaseHealthCheckService
+    private healthCheckService: DatabaseHealthCheckService,
+    private configService: ConfigService
   ) {
     this.config = {
-      enabled: process.env.NODE_ENV !== 'test',
-      metricsInterval: parseInt(process.env.DB_METRICS_INTERVAL || '30000'), // 30 seconds
+      enabled: this.configService.get<string>('NODE_ENV') !== 'test',
+      metricsInterval: this.configService.get<number>(
+        'DB_METRICS_INTERVAL',
+        30000
+      ), // 30 seconds
       alertThresholds: {
-        responseTimeMs: parseInt(process.env.DB_RESPONSE_TIME_THRESHOLD || '5000'), // 5 seconds
-        errorRatePercent: parseInt(process.env.DB_ERROR_RATE_THRESHOLD || '5'), // 5%
-        memoryUsagePercent: parseInt(process.env.DB_MEMORY_THRESHOLD || '90'), // 90%
+        responseTimeMs: this.configService.get<number>(
+          'DB_RESPONSE_TIME_THRESHOLD',
+          5000
+        ), // 5 seconds
+        errorRatePercent: this.configService.get<number>(
+          'DB_ERROR_RATE_THRESHOLD',
+          5
+        ), // 5%
+        memoryUsagePercent: this.configService.get<number>(
+          'DB_MEMORY_THRESHOLD',
+          90
+        ), // 90%
       },
-      retentionPeriod: parseInt(process.env.DB_METRICS_RETENTION || '86400000'), // 24 hours
-      maxMetricsHistory: parseInt(process.env.DB_MAX_METRICS || '2880'), // 24 hours worth at 30s intervals
-      maxAlertsHistory: parseInt(process.env.DB_MAX_ALERTS || '1000'),
+      retentionPeriod: this.configService.get<number>(
+        'DB_METRICS_RETENTION',
+        86400000
+      ), // 24 hours
+      maxMetricsHistory: this.configService.get<number>('DB_MAX_METRICS', 2880), // 24 hours worth at 30s intervals
+      maxAlertsHistory: this.configService.get<number>('DB_MAX_ALERTS', 1000),
     };
   }
 
   async onModuleInit(): Promise<void> {
     if (this.config.enabled) {
       this.startMonitoring();
-      this.logger.log(`Database monitoring started with ${this.config.metricsInterval}ms interval`);
+      this.logger.log(
+        `Database monitoring started with ${this.config.metricsInterval}ms interval`
+      );
     } else {
       this.logger.log('Database monitoring disabled');
     }
@@ -109,7 +136,9 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
         this.cleanupOldData();
       } catch (error) {
         this.logger.error('Error during metrics collection:', error);
-        this.createAlert('system', 'error', 'Metrics collection failed', { error: error instanceof Error ? error.message : String(error) });
+        this.createAlert('system', 'error', 'Metrics collection failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }, this.config.metricsInterval);
   }
@@ -131,7 +160,7 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
   private async collectMetrics(): Promise<void> {
     const timestamp = new Date();
     const healthStatus = await this.healthCheckService.checkAllDatabases();
-    
+
     const metrics: DatabaseMetrics = {
       timestamp,
       postgresql: await this.collectPostgreSQLMetrics(healthStatus),
@@ -142,10 +171,12 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
 
     // Add to history
     this.metricsHistory.push(metrics);
-    
+
     // Limit history size
     if (this.metricsHistory.length > this.config.maxMetricsHistory) {
-      this.metricsHistory = this.metricsHistory.slice(-this.config.maxMetricsHistory);
+      this.metricsHistory = this.metricsHistory.slice(
+        -this.config.maxMetricsHistory
+      );
     }
 
     // Check for alerts
@@ -163,9 +194,11 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
    * Collect PostgreSQL specific metrics
    */
   private async collectPostgreSQLMetrics(healthStatus: OverallHealthStatus) {
-    const dbHealth = healthStatus.databases.find(db => db.name === 'PostgreSQL');
+    const dbHealth = healthStatus.databases.find(
+      (db) => db.name === 'PostgreSQL'
+    );
     const prisma = this.databaseManager.getPostgreSQL();
-    
+
     const metrics = {
       connected: dbHealth?.status === 'healthy',
       responseTime: dbHealth?.responseTime || 0,
@@ -174,7 +207,7 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
     try {
       if (metrics.connected) {
         // Get additional PostgreSQL metrics
-        const _connectionInfo = await prisma.getConnectionInfo();
+        await prisma.getConnectionInfo(); // Connection info for future metrics
         // Add more metrics as needed when schema is available
       }
     } catch (error) {
@@ -188,9 +221,9 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
    * Collect MongoDB specific metrics
    */
   private async collectMongoDBMetrics(healthStatus: OverallHealthStatus) {
-    const dbHealth = healthStatus.databases.find(db => db.name === 'MongoDB');
+    const dbHealth = healthStatus.databases.find((db) => db.name === 'MongoDB');
     const mongodb = this.databaseManager.getMongoDB();
-    
+
     const metrics = {
       connected: dbHealth?.status === 'healthy',
       responseTime: dbHealth?.responseTime || 0,
@@ -214,9 +247,9 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
    * Collect Redis specific metrics
    */
   private async collectRedisMetrics(healthStatus: OverallHealthStatus) {
-    const dbHealth = healthStatus.databases.find(db => db.name === 'Redis');
+    const dbHealth = healthStatus.databases.find((db) => db.name === 'Redis');
     const redis = this.databaseManager.getRedis();
-    
+
     const metrics = {
       connected: dbHealth?.status === 'healthy',
       responseTime: dbHealth?.responseTime || 0,
@@ -242,9 +275,9 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
    * Collect Qdrant specific metrics
    */
   private async collectQdrantMetrics(healthStatus: OverallHealthStatus) {
-    const dbHealth = healthStatus.databases.find(db => db.name === 'Qdrant');
+    const dbHealth = healthStatus.databases.find((db) => db.name === 'Qdrant');
     const qdrant = this.databaseManager.getQdrant();
-    
+
     const metrics = {
       connected: dbHealth?.status === 'healthy',
       responseTime: dbHealth?.responseTime || 0,
@@ -272,10 +305,10 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
 
     // Check response times
     this.checkResponseTimeAlerts(metrics, alertThresholds.responseTimeMs);
-    
+
     // Check connection status
     this.checkConnectionAlerts(metrics);
-    
+
     // Check Redis memory usage
     this.checkRedisMemoryAlerts(metrics);
   }
@@ -283,22 +316,20 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
   /**
    * Check for response time alerts
    */
-  private checkResponseTimeAlerts(metrics: DatabaseMetrics, threshold: number): void {
+  private checkResponseTimeAlerts(
+    metrics: DatabaseMetrics,
+    threshold: number
+  ): void {
     const databases = ['postgresql', 'mongodb', 'redis', 'qdrant'] as const;
-    
+
     for (const db of databases) {
       const dbMetrics = metrics[db];
       if (dbMetrics.connected && dbMetrics.responseTime > threshold) {
-        this.createAlert(
-          db,
-          'warning',
-          `High response time detected`,
-          {
-            responseTime: dbMetrics.responseTime,
-            threshold,
-            database: db,
-          }
-        );
+        this.createAlert(db, 'warning', `High response time detected`, {
+          responseTime: dbMetrics.responseTime,
+          threshold,
+          database: db,
+        });
       }
     }
   }
@@ -308,19 +339,14 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
    */
   private checkConnectionAlerts(metrics: DatabaseMetrics): void {
     const databases = ['postgresql', 'mongodb', 'redis', 'qdrant'] as const;
-    
+
     for (const db of databases) {
       const dbMetrics = metrics[db];
       if (!dbMetrics.connected) {
-        this.createAlert(
-          db,
-          'critical',
-          `Database connection lost`,
-          {
-            database: db,
-            lastConnected: this.getLastConnectedTime(db),
-          }
-        );
+        this.createAlert(db, 'critical', `Database connection lost`, {
+          database: db,
+          lastConnected: this.getLastConnectedTime(db),
+        });
       }
     }
   }
@@ -333,7 +359,8 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
       // Extract memory usage percentage if available
       const memoryStr = metrics.redis.memory;
       // This is a simplified check - in production you'd parse the actual memory values
-      if (memoryStr.includes('G') && parseFloat(memoryStr) > 1) { // More than 1GB
+      if (memoryStr.includes('G') && parseFloat(memoryStr) > 1) {
+        // More than 1GB
         this.createAlert(
           'redis',
           'warning',
@@ -367,15 +394,21 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
     };
 
     this.alertsHistory.push(alert);
-    
+
     // Limit alerts history
     if (this.alertsHistory.length > this.config.maxAlertsHistory) {
-      this.alertsHistory = this.alertsHistory.slice(-this.config.maxAlertsHistory);
+      this.alertsHistory = this.alertsHistory.slice(
+        -this.config.maxAlertsHistory
+      );
     }
 
     // Log the alert
-    const logMethod = level === 'critical' ? 'error' : level === 'warning' ? 'warn' : 'log';
-    this.logger[logMethod](`[${level.toUpperCase()}] ${database}: ${message}`, details);
+    const logMethod =
+      level === 'critical' ? 'error' : level === 'warning' ? 'warn' : 'log';
+    this.logger[logMethod](
+      `[${level.toUpperCase()}] ${database}: ${message}`,
+      details
+    );
   }
 
   /**
@@ -397,15 +430,15 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
    */
   private cleanupOldData(): void {
     const cutoffTime = Date.now() - this.config.retentionPeriod;
-    
+
     // Clean old metrics
     this.metricsHistory = this.metricsHistory.filter(
-      metrics => metrics.timestamp.getTime() > cutoffTime
+      (metrics) => metrics.timestamp.getTime() > cutoffTime
     );
-    
+
     // Clean old resolved alerts
     this.alertsHistory = this.alertsHistory.filter(
-      alert => !alert.resolved || alert.timestamp.getTime() > cutoffTime
+      (alert) => !alert.resolved || alert.timestamp.getTime() > cutoffTime
     );
   }
 
@@ -413,7 +446,7 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
    * Get current metrics
    */
   getCurrentMetrics(): DatabaseMetrics | null {
-    return this.metricsHistory.length > 0 
+    return this.metricsHistory.length > 0
       ? this.metricsHistory[this.metricsHistory.length - 1]
       : null;
   }
@@ -422,32 +455,28 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
    * Get metrics history
    */
   getMetricsHistory(limit?: number): DatabaseMetrics[] {
-    return limit 
-      ? this.metricsHistory.slice(-limit)
-      : this.metricsHistory;
+    return limit ? this.metricsHistory.slice(-limit) : this.metricsHistory;
   }
 
   /**
    * Get active alerts
    */
   getActiveAlerts(): DatabaseAlert[] {
-    return this.alertsHistory.filter(alert => !alert.resolved);
+    return this.alertsHistory.filter((alert) => !alert.resolved);
   }
 
   /**
    * Get all alerts
    */
   getAllAlerts(limit?: number): DatabaseAlert[] {
-    return limit
-      ? this.alertsHistory.slice(-limit)
-      : this.alertsHistory;
+    return limit ? this.alertsHistory.slice(-limit) : this.alertsHistory;
   }
 
   /**
    * Resolve an alert
    */
   resolveAlert(alertId: string): boolean {
-    const alert = this.alertsHistory.find(a => a.id === alertId);
+    const alert = this.alertsHistory.find((a) => a.id === alertId);
     if (alert && !alert.resolved) {
       alert.resolved = true;
       alert.resolvedAt = new Date();
@@ -470,7 +499,10 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
   } {
     return {
       isEnabled: this.config.enabled,
-      uptime: this.metricsInterval ? Date.now() - (this.metricsHistory[0]?.timestamp.getTime() || Date.now()) : 0,
+      uptime: this.metricsInterval
+        ? Date.now() -
+          (this.metricsHistory[0]?.timestamp.getTime() || Date.now())
+        : 0,
       metricsCollected: this.metricsHistory.length,
       activeAlerts: this.getActiveAlerts().length,
       totalAlerts: this.alertsHistory.length,
@@ -492,7 +524,7 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
   updateConfig(newConfig: Partial<MonitoringConfig>): void {
     Object.assign(this.config, newConfig);
     this.logger.log('Monitoring configuration updated', newConfig);
-    
+
     // Restart monitoring if interval changed
     if (newConfig.metricsInterval && this.metricsInterval) {
       this.stopMonitoring();
@@ -505,7 +537,7 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
    */
   exportMetrics(format: 'json' | 'prometheus' = 'json'): string {
     const currentMetrics = this.getCurrentMetrics();
-    
+
     if (!currentMetrics) {
       return format === 'json' ? '{}' : '';
     }
@@ -513,7 +545,7 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
     if (format === 'prometheus') {
       return this.formatPrometheusMetrics(currentMetrics);
     }
-    
+
     return JSON.stringify(currentMetrics, null, 2);
   }
 
@@ -525,20 +557,48 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
     const timestamp = Math.floor(metrics.timestamp.getTime() / 1000);
 
     // Database connection status
-    lines.push(`# HELP database_connected Database connection status (1 = connected, 0 = disconnected)`);
+    lines.push(
+      `# HELP database_connected Database connection status (1 = connected, 0 = disconnected)`
+    );
     lines.push(`# TYPE database_connected gauge`);
-    lines.push(`database_connected{database="postgresql"} ${metrics.postgresql.connected ? 1 : 0} ${timestamp}`);
-    lines.push(`database_connected{database="mongodb"} ${metrics.mongodb.connected ? 1 : 0} ${timestamp}`);
-    lines.push(`database_connected{database="redis"} ${metrics.redis.connected ? 1 : 0} ${timestamp}`);
-    lines.push(`database_connected{database="qdrant"} ${metrics.qdrant.connected ? 1 : 0} ${timestamp}`);
+    lines.push(
+      `database_connected{database="postgresql"} ${
+        metrics.postgresql.connected ? 1 : 0
+      } ${timestamp}`
+    );
+    lines.push(
+      `database_connected{database="mongodb"} ${
+        metrics.mongodb.connected ? 1 : 0
+      } ${timestamp}`
+    );
+    lines.push(
+      `database_connected{database="redis"} ${
+        metrics.redis.connected ? 1 : 0
+      } ${timestamp}`
+    );
+    lines.push(
+      `database_connected{database="qdrant"} ${
+        metrics.qdrant.connected ? 1 : 0
+      } ${timestamp}`
+    );
 
     // Response times
-    lines.push(`# HELP database_response_time_ms Database response time in milliseconds`);
+    lines.push(
+      `# HELP database_response_time_ms Database response time in milliseconds`
+    );
     lines.push(`# TYPE database_response_time_ms gauge`);
-    lines.push(`database_response_time_ms{database="postgresql"} ${metrics.postgresql.responseTime} ${timestamp}`);
-    lines.push(`database_response_time_ms{database="mongodb"} ${metrics.mongodb.responseTime} ${timestamp}`);
-    lines.push(`database_response_time_ms{database="redis"} ${metrics.redis.responseTime} ${timestamp}`);
-    lines.push(`database_response_time_ms{database="qdrant"} ${metrics.qdrant.responseTime} ${timestamp}`);
+    lines.push(
+      `database_response_time_ms{database="postgresql"} ${metrics.postgresql.responseTime} ${timestamp}`
+    );
+    lines.push(
+      `database_response_time_ms{database="mongodb"} ${metrics.mongodb.responseTime} ${timestamp}`
+    );
+    lines.push(
+      `database_response_time_ms{database="redis"} ${metrics.redis.responseTime} ${timestamp}`
+    );
+    lines.push(
+      `database_response_time_ms{database="qdrant"} ${metrics.qdrant.responseTime} ${timestamp}`
+    );
 
     return lines.join('\n');
   }

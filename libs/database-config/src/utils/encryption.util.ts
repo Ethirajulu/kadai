@@ -64,8 +64,9 @@ export class EncryptionUtil {
     try {
       // Convert hex strings back to buffers
       const salt = Buffer.from(encryptedData.salt, 'hex');
-      const iv = Buffer.from(encryptedData.iv, 'hex');
-      const authTag = encryptedData.authTag ? Buffer.from(encryptedData.authTag, 'hex') : undefined;
+      // Note: IV and AuthTag preserved for future GCM support
+      // const iv = Buffer.from(encryptedData.iv, 'hex');
+      // const authTag = encryptedData.authTag ? Buffer.from(encryptedData.authTag, 'hex') : undefined;
       
       // Derive key from password
       const key = crypto.pbkdf2Sync(password, salt, config.iterations, config.keyLength, 'sha256');

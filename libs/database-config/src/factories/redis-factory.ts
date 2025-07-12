@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/config/redis.service';
 import { faker } from '@faker-js/faker';
 
@@ -23,7 +24,10 @@ export interface RedisTestAPIResponse {
 }
 
 export class RedisTestDataFactory {
-  constructor(private redisService: RedisService) {}
+  constructor(
+    private redisService: RedisService,
+    private configService: ConfigService
+  ) {}
 
   /**
    * Generate test session data
@@ -310,7 +314,7 @@ export class RedisTestDataFactory {
     productCache: RedisTestCache[];
     apiCache: RedisTestCache[];
   }> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot seed test data in production environment');
     }
 
@@ -412,7 +416,7 @@ export class RedisTestDataFactory {
    * Clean all test data from Redis
    */
   async cleanAllTestData(): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean test data in production environment');
     }
 
@@ -423,7 +427,7 @@ export class RedisTestDataFactory {
    * Clean specific key patterns
    */
   async cleanKeyPatterns(patterns: { keyType: string; pattern: string }[]): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean test data in production environment');
     }
 

@@ -17,8 +17,8 @@ import { MongodbService } from './mongodb.service';
         maxPoolSize: 10,
         serverSelectionTimeoutMS: 5000,
         socketTimeoutMS: 45000,
-        ...(process.env.MONGODB_REPLICA_SET && {
-          replicaSet: process.env.MONGODB_REPLICA_SET,
+        ...(configService.get<string>('MONGODB_REPLICA_SET') && {
+          replicaSet: configService.get<string>('MONGODB_REPLICA_SET'),
           readPreference: 'secondary',
           writeConcern: { w: 'majority', j: true, wtimeout: 1000 }
         })

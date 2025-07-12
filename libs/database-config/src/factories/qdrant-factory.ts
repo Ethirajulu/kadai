@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { QdrantService } from '../qdrant/config/qdrant.service';
 import { faker } from '@faker-js/faker';
 
@@ -43,7 +44,10 @@ export interface QdrantTestImageEmbedding extends QdrantTestPoint {
 }
 
 export class QdrantTestDataFactory {
-  constructor(private qdrantService: QdrantService) {}
+  constructor(
+    private qdrantService: QdrantService,
+    private configService: ConfigService
+  ) {}
 
   /**
    * Generate test collection configuration
@@ -329,7 +333,7 @@ export class QdrantTestDataFactory {
     textEmbeddings: number;
     userPreferences: number;
   }> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot seed test data in production environment');
     }
 
@@ -505,7 +509,7 @@ export class QdrantTestDataFactory {
    * Clean all test data from Qdrant
    */
   async cleanAllTestData(): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean test data in production environment');
     }
 
@@ -516,7 +520,7 @@ export class QdrantTestDataFactory {
    * Clean specific test collections
    */
   async cleanTestCollections(collectionNames: string[]): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean test data in production environment');
     }
 

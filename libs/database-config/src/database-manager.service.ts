@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from './postgresql/config/prisma.service';
 import { MongodbService } from './mongodb/config/mongodb.service';
 import { RedisService } from './redis/config/redis.service';
@@ -37,6 +38,7 @@ export class DatabaseManager implements OnModuleInit, OnModuleDestroy {
   private readonly config: DatabaseManagerConfig;
 
   constructor(
+    private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
     private readonly mongodbService: MongodbService,
     private readonly redisService: RedisService,
@@ -345,7 +347,7 @@ export class DatabaseManager implements OnModuleInit, OnModuleDestroy {
    * Clean all databases (test environments only)
    */
   async cleanAllDatabases(): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean databases in production environment');
     }
 

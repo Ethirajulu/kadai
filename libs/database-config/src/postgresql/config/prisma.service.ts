@@ -7,15 +7,15 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  constructor(private _configService: ConfigService) {
+  constructor(private configService: ConfigService) {
     super({
       datasources: {
         db: {
-          url: _configService.get<string>('DATABASE_URL'),
+          url: configService.get<string>('DATABASE_URL'),
         },
       },
       log:
-        process.env.NODE_ENV === 'development'
+        configService.get<string>('NODE_ENV') === 'development'
           ? ['query', 'info', 'warn', 'error']
           : ['error'],
     });
@@ -30,7 +30,7 @@ export class PrismaService
   }
 
   async cleanDb() {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean database in production');
     }
 

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DatabaseManager } from '../database-manager.service';
 import { PostgreSQLTestDataFactory } from './postgresql-factory';
 import { MongoDBTestDataFactory } from './mongodb-factory';
@@ -46,17 +47,20 @@ export class TestDataManager {
   private redisFactory!: RedisTestDataFactory;
   private qdrantFactory!: QdrantTestDataFactory;
 
-  constructor(private databaseManager: DatabaseManager) {
+  constructor(
+    private databaseManager: DatabaseManager,
+    private configService: ConfigService
+  ) {
     this.initializeFactories();
   }
 
   private initializeFactories(): void {
     const connections = this.databaseManager.getConnections();
     
-    this.postgresqlFactory = new PostgreSQLTestDataFactory(connections.prisma);
-    this.mongodbFactory = new MongoDBTestDataFactory(connections.mongodb);
-    this.redisFactory = new RedisTestDataFactory(connections.redis);
-    this.qdrantFactory = new QdrantTestDataFactory(connections.qdrant);
+    this.postgresqlFactory = new PostgreSQLTestDataFactory(connections.prisma, this.configService);
+    this.mongodbFactory = new MongoDBTestDataFactory(connections.mongodb, this.configService);
+    this.redisFactory = new RedisTestDataFactory(connections.redis, this.configService);
+    this.qdrantFactory = new QdrantTestDataFactory(connections.qdrant, this.configService);
   }
 
   /**
@@ -75,7 +79,7 @@ export class TestDataManager {
    * Seed all databases with comprehensive test data
    */
   async seedCompleteTestDataset(): Promise<TestDataSummary> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot seed test data in production environment');
     }
 
@@ -132,7 +136,7 @@ export class TestDataManager {
    * Clean all test data from all databases
    */
   async cleanAllTestData(): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean test data in production environment');
     }
 
@@ -151,7 +155,7 @@ export class TestDataManager {
    * Set up test data for specific scenarios
    */
   async setupTestScenario(scenario: TestScenario): Promise<any> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot setup test scenarios in production environment');
     }
 
@@ -365,7 +369,7 @@ export class TestDataManager {
    * Generate performance test data
    */
   async generatePerformanceTestData(scale: 'small' | 'medium' | 'large' = 'medium'): Promise<TestDataSummary> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot generate performance test data in production environment');
     }
 

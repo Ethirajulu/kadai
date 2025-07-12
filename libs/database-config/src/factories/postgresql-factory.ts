@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../postgresql/config/prisma.service';
 import { faker } from '@faker-js/faker';
 
@@ -46,7 +47,10 @@ export interface PostgreSQLTestOrder {
 }
 
 export class PostgreSQLTestDataFactory {
-  constructor(private prismaService: PrismaService) {}
+  constructor(
+    private prismaService: PrismaService,
+    private configService: ConfigService
+  ) {}
 
   /**
    * Generate test user data
@@ -180,7 +184,7 @@ export class PostgreSQLTestDataFactory {
     orders: any[];
     payments: any[];
   }> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot seed test data in production environment');
     }
 
@@ -243,7 +247,7 @@ export class PostgreSQLTestDataFactory {
    * Clean all test data (use with caution)
    */
   async cleanAllTestData(): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
       throw new Error('Cannot clean test data in production environment');
     }
 
