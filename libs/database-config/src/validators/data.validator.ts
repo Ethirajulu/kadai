@@ -268,7 +268,7 @@ export class DataValidator {
 
     // Check if all required fields are present in strict mode
     if (schema.strict) {
-      const schemaFields = schema.rules.map(rule => rule.field);
+      const schemaFields = schema.rules.map((rule: any) => rule.field);
       const dataFields = Object.keys(data);
       
       for (const field of schemaFields) {

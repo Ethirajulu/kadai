@@ -135,8 +135,8 @@ export class RetryUtil {
    */
   static async executeWithBackoff<T>(
     fn: () => Promise<T>,
-    maxAttempts: number = 3,
-    initialDelay: number = 1000
+    maxAttempts = 3,
+    initialDelay = 1000
   ): Promise<T> {
     const config = this.getDefaultRetryConfig('query');
     config.maxAttempts = maxAttempts;

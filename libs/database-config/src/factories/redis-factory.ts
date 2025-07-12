@@ -375,7 +375,7 @@ export class RedisTestDataFactory {
           sessions: Array.from({ length: 500 }, () => this.generateSession()),
         };
       
-      case 'session-cleanup':
+      case 'session-cleanup': {
         const now = Date.now();
         return {
           expiredSessions: Array.from({ length: 50 }, () => 
@@ -385,6 +385,7 @@ export class RedisTestDataFactory {
             this.generateSession({ expiresAt: now + (3600 * 1000) }) // Expires in 1 hour
           ),
         };
+      }
       
       case 'cache-warming':
         return {
@@ -393,13 +394,14 @@ export class RedisTestDataFactory {
           computedData: Array.from({ length: 50 }, () => this.generateCacheEntry('computed')),
         };
       
-      case 'user-activity':
+      case 'user-activity': {
         const userId = faker.string.uuid();
         return {
           userSession: this.generateSession({ userId }),
           userCache: this.generateCacheEntry('user', { key: userId }),
           recentOrders: Array.from({ length: 5 }, () => this.generateCacheEntry('order')),
         };
+      }
       
       default:
         throw new Error(`Unknown scenario: ${scenario}`);

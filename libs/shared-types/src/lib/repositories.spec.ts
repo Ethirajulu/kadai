@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from '@jest/globals';
+// Jest globals are available without explicit import
 import {
   BaseRepositoryImpl,
   RepositoryError,
@@ -7,7 +7,7 @@ import {
   ValidationError,
   DatabaseError,
   TransactionError,
-} from './repositories';
+} from './repositories.js';
 import {
   User,
   UserRole,
@@ -15,7 +15,7 @@ import {
   PaginatedResponse,
   CreateUserInput,
   UpdateUserInput,
-} from './shared-types';
+} from './shared-types.js';
 
 // ============================
 // MOCK IMPLEMENTATIONS
@@ -134,6 +134,24 @@ class MockUserRepository extends BaseRepositoryImpl<User> {
 
   getUsers(): User[] {
     return [...this.users];
+  }
+
+  // Public wrappers for protected methods to use in tests
+  public validatePaginationOptions(options?: PaginationOptions): Required<PaginationOptions> {
+    return super.validatePaginationOptions(options);
+  }
+
+  public calculateOffset(page: number, limit: number): number {
+    return super.calculateOffset(page, limit);
+  }
+
+  public buildPaginationResponse<K>(
+    data: K[],
+    total: number,
+    page: number,
+    limit: number
+  ): PaginatedResponse<K> {
+    return super.buildPaginationResponse(data, total, page, limit);
   }
 }
 
@@ -513,7 +531,7 @@ describe('Repository Performance', () => {
     expect(repository.getUsers()).toHaveLength(10);
     
     // All users should have unique IDs
-    const ids = results.map(user => user.id);
+    const ids = results.map((user: User) => user.id);
     const uniqueIds = [...new Set(ids)];
     expect(uniqueIds).toHaveLength(10);
   });
@@ -578,7 +596,7 @@ describe('Repository Integration', () => {
     // Verify remaining users are correct
     const remaining = await repository.findAll();
     expect(remaining.data).toHaveLength(2);
-    expect(remaining.data.find(u => u.id === users[0].id)?.firstName).toBe('Updated');
-    expect(remaining.data.find(u => u.id === users[1].id)).toBeUndefined();
+    expect(remaining.data.find((u: User) => u.id === users[0].id)?.firstName).toBe('Updated');
+    expect(remaining.data.find((u: User) => u.id === users[1].id)).toBeUndefined();
   });
 });

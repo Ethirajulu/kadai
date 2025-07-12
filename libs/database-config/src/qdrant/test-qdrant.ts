@@ -78,7 +78,7 @@ async function testCollectionSchemas() {
     // Test creating collections from our schemas
     const testCollections = [];
     
-    for (const [schemaKey, schema] of Object.entries(COLLECTION_SCHEMAS)) {
+    for (const [_schemaKey, schema] of Object.entries(COLLECTION_SCHEMAS)) {
       const testName = `test_${schema.name}_${Date.now()}`;
       console.log(`🛠️ Creating collection: ${testName}`);
       

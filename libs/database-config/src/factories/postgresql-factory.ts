@@ -54,7 +54,7 @@ export class PostgreSQLTestDataFactory {
   generateUser(overrides: Partial<PostgreSQLTestUser> = {}): PostgreSQLTestUser {
     return {
       email: faker.internet.email(),
-      phoneNumber: faker.phone.number('+91##########'),
+      phoneNumber: faker.phone.number({ style: 'human' }),
       firstName: faker.person.firstName(),
       lastName: faker.person.lastName(),
       role: faker.helpers.arrayElement(['CUSTOMER', 'SELLER', 'ADMIN']),
@@ -134,7 +134,7 @@ export class PostgreSQLTestDataFactory {
       businessType: faker.helpers.arrayElement(businessTypes),
       gstNumber: this.generateGSTNumber(),
       businessAddress: faker.location.streetAddress({ useFullAddress: true }),
-      businessPhone: faker.phone.number('+91##########'),
+      businessPhone: faker.phone.number({ style: 'human' }),
       businessEmail: faker.internet.email(),
       isVerified: faker.datatype.boolean(0.6), // 60% chance of being verified
     };

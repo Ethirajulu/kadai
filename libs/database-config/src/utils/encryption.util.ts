@@ -41,20 +41,15 @@ export class EncryptionUtil {
       
       // Create cipher
       const cipher = crypto.createCipher(config.algorithm, key);
-      cipher.setAAD(Buffer.from('database-config')); // Additional authenticated data
       
       // Encrypt data
       let encrypted = cipher.update(data, 'utf8', 'hex');
       encrypted += cipher.final('hex');
       
-      // Get authentication tag for GCM mode
-      const authTag = cipher.getAuthTag();
-      
       return {
         data: encrypted,
         iv: iv.toString('hex'),
-        salt: salt.toString('hex'),
-        authTag: authTag.toString('hex')
+        salt: salt.toString('hex')
       };
     } catch (error) {
       this.logger.error('Encryption failed:', error);
@@ -77,10 +72,6 @@ export class EncryptionUtil {
       
       // Create decipher
       const decipher = crypto.createDecipher(config.algorithm, key);
-      if (authTag) {
-        decipher.setAuthTag(authTag);
-        decipher.setAAD(Buffer.from('database-config'));
-      }
       
       // Decrypt data
       let decrypted = decipher.update(encryptedData.data, 'hex', 'utf8');
@@ -96,7 +87,7 @@ export class EncryptionUtil {
   /**
    * Hash passwords securely using bcrypt-like approach
    */
-  static async hashPassword(password: string, rounds: number = 12): Promise<string> {
+  static async hashPassword(password: string, rounds = 12): Promise<string> {
     try {
       const salt = crypto.randomBytes(16);
       const hash = crypto.pbkdf2Sync(password, salt, Math.pow(2, rounds), 64, 'sha256');
@@ -131,7 +122,7 @@ export class EncryptionUtil {
   /**
    * Generate secure random password
    */
-  static generateSecurePassword(length: number = 32): string {
+  static generateSecurePassword(length = 32): string {
     const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
     let password = '';
     
@@ -146,21 +137,21 @@ export class EncryptionUtil {
   /**
    * Generate secure random token
    */
-  static generateSecureToken(bytes: number = 32): string {
+  static generateSecureToken(bytes = 32): string {
     return crypto.randomBytes(bytes).toString('hex');
   }
 
   /**
    * Hash data for integrity checking
    */
-  static hashData(data: string, algorithm: string = 'sha256'): string {
+  static hashData(data: string, algorithm = 'sha256'): string {
     return crypto.createHash(algorithm).update(data).digest('hex');
   }
 
   /**
    * Verify data integrity
    */
-  static verifyDataIntegrity(data: string, hash: string, algorithm: string = 'sha256'): boolean {
+  static verifyDataIntegrity(data: string, hash: string, algorithm = 'sha256'): boolean {
     const computedHash = this.hashData(data, algorithm);
     return crypto.timingSafeEqual(
       Buffer.from(hash, 'hex'),
@@ -211,14 +202,14 @@ export class EncryptionUtil {
   /**
    * Generate HMAC for message authentication
    */
-  static generateHMAC(data: string, secret: string, algorithm: string = 'sha256'): string {
+  static generateHMAC(data: string, secret: string, algorithm = 'sha256'): string {
     return crypto.createHmac(algorithm, secret).update(data).digest('hex');
   }
 
   /**
    * Verify HMAC
    */
-  static verifyHMAC(data: string, signature: string, secret: string, algorithm: string = 'sha256'): boolean {
+  static verifyHMAC(data: string, signature: string, secret: string, algorithm = 'sha256'): boolean {
     const expectedSignature = this.generateHMAC(data, secret, algorithm);
     return this.secureCompare(signature, expectedSignature);
   }

@@ -253,7 +253,7 @@ export class QdrantTestDataFactory {
     );
 
     const indexes: Record<string, string> = {};
-    selectedFields.forEach(field => {
+    selectedFields.forEach((field: string) => {
       indexes[field] = possibleIndexes[field as keyof typeof possibleIndexes];
     });
 

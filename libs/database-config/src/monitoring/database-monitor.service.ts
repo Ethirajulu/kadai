@@ -174,7 +174,7 @@ export class DatabaseMonitorService implements OnModuleInit, OnModuleDestroy {
     try {
       if (metrics.connected) {
         // Get additional PostgreSQL metrics
-        const connectionInfo = await prisma.getConnectionInfo();
+        const _connectionInfo = await prisma.getConnectionInfo();
         // Add more metrics as needed when schema is available
       }
     } catch (error) {

@@ -41,10 +41,10 @@ export interface TestScenario {
 
 @Injectable()
 export class TestDataManager {
-  private postgresqlFactory: PostgreSQLTestDataFactory;
-  private mongodbFactory: MongoDBTestDataFactory;
-  private redisFactory: RedisTestDataFactory;
-  private qdrantFactory: QdrantTestDataFactory;
+  private postgresqlFactory!: PostgreSQLTestDataFactory;
+  private mongodbFactory!: MongoDBTestDataFactory;
+  private redisFactory!: RedisTestDataFactory;
+  private qdrantFactory!: QdrantTestDataFactory;
 
   constructor(private databaseManager: DatabaseManager) {
     this.initializeFactories();
@@ -198,13 +198,13 @@ export class TestDataManager {
     // Seed the generated data into Redis
     const connections = this.databaseManager.getConnections();
     
-    if ('sessions' in scenarioData) {
+    if ('sessions' in scenarioData && scenarioData.sessions) {
       for (const session of scenarioData.sessions) {
         await connections.redis.set('session', `${session.userId}:${session.sessionId}`, session.data);
       }
     }
 
-    if ('apiCache' in scenarioData) {
+    if ('apiCache' in scenarioData && scenarioData.apiCache) {
       for (const cache of scenarioData.apiCache) {
         await connections.redis.set('api', cache.key, cache.value, cache.ttl);
       }
