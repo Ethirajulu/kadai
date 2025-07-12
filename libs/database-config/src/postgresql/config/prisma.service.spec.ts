@@ -45,16 +45,27 @@ describe('PrismaService', () => {
   });
 
   it('should throw error when cleaning database in production', async () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
+    // Create a mock config service that returns 'production' for NODE_ENV
+    const productionConfigService = {
+      get: jest.fn().mockImplementation((key: string) => {
+        switch (key) {
+          case 'DATABASE_URL':
+            return 'postgresql://test:test@localhost:5432/test';
+          case 'NODE_ENV':
+            return 'production';
+          default:
+            return undefined;
+        }
+      }),
+    };
 
-    const service = new PrismaService(configService);
+    const service = new PrismaService(productionConfigService as unknown as ConfigService);
 
     // Mock the service properly since it extends PrismaClient
     const cleanDbSpy = jest
       .spyOn(service, 'cleanDb')
       .mockImplementation(async () => {
-        if (process.env.NODE_ENV === 'production') {
+        if (productionConfigService.get('NODE_ENV') === 'production') {
           throw new Error('Cannot clean database in production');
         }
         return Promise.resolve([]);
@@ -64,7 +75,6 @@ describe('PrismaService', () => {
       'Cannot clean database in production'
     );
 
-    process.env.NODE_ENV = originalEnv;
     cleanDbSpy.mockRestore();
   });
 

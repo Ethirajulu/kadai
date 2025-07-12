@@ -136,12 +136,13 @@ describe('QdrantService Integration Tests', () => {
           useValue: {
             get: jest.fn((key: string, defaultValue?: any) => {
               const config = {
-                'QDRANT_HOST': process.env.QDRANT_HOST || 'localhost',
-                'QDRANT_PORT': parseInt(process.env.QDRANT_PORT || '6333'),
-                'QDRANT_HTTPS': process.env.QDRANT_HTTPS === 'true',
-                'QDRANT_API_KEY': process.env.QDRANT_API_KEY,
-                'QDRANT_TIMEOUT': parseInt(process.env.QDRANT_TIMEOUT || '30000'),
-                'QDRANT_RETRY_ATTEMPTS': parseInt(process.env.QDRANT_RETRY_ATTEMPTS || '3'),
+                'QDRANT_HOST': 'localhost',
+                'QDRANT_PORT': 6333,
+                'QDRANT_HTTPS': false,
+                'QDRANT_API_KEY': undefined,
+                'QDRANT_TIMEOUT': 30000,
+                'QDRANT_RETRY_ATTEMPTS': 3,
+                'NODE_ENV': 'test',
               };
               return config[key] ?? defaultValue;
             }),

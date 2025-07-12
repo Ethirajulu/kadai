@@ -210,6 +210,9 @@ export class QdrantService implements OnModuleInit, OnModuleDestroy {
 
   async healthCheck(): Promise<boolean> {
     try {
+      if (!this.client) {
+        return false;
+      }
       await this.client.getCollections();
       return true;
     } catch (error) {

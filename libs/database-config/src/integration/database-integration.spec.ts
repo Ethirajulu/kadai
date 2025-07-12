@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DatabaseConfigModule } from '../database-config.module';
 import { DatabaseManager } from '../database-manager.service';
@@ -15,6 +15,7 @@ import { DatabaseHealthCheckService } from '../health-check.service';
  * Skip these tests in unit test runs by using --testPathIgnorePatterns
  */
 describe('Database Integration Tests', () => {
+  jest.setTimeout(15000); // Set timeout for integration tests
   let module: TestingModule;
   let databaseManager: DatabaseManager;
   let prismaService: PrismaService;
@@ -41,9 +42,18 @@ describe('Database Integration Tests', () => {
           isGlobal: true,
           envFilePath: ['.env.test', '.env.local', '.env'],
         }),
-        MongooseModule.forRoot(
-          process.env.MONGODB_URL || 'mongodb://localhost:27017/kadai-test'
-        ),
+        MongooseModule.forRootAsync({
+          imports: [ConfigModule],
+          useFactory: async (configService: ConfigService) => ({
+            uri: configService.get<string>('MONGODB_URL', 'mongodb://localhost:27017/kadai-test'),
+            serverSelectionTimeoutMS: 2000, // Reduced timeout for tests
+            socketTimeoutMS: 10000,
+            connectTimeoutMS: 2000,
+            maxPoolSize: 2, // Smaller pool for tests
+            retryWrites: false,
+          }),
+          inject: [ConfigService]
+        }),
         DatabaseConfigModule,
       ],
     }).compile();
@@ -55,8 +65,8 @@ describe('Database Integration Tests', () => {
     qdrantService = module.get<QdrantService>(QdrantService);
     healthCheckService = module.get<DatabaseHealthCheckService>(DatabaseHealthCheckService);
 
-    // Wait for all services to initialize
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait for all services to initialize with shorter timeout for tests
+    await new Promise(resolve => setTimeout(resolve, 1000));
   });
 
   afterAll(async () => {

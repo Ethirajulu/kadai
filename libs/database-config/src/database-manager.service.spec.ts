@@ -365,17 +365,17 @@ describe('DatabaseManager', () => {
 
     it('should handle shutdown errors gracefully', async () => {
       // Arrange
-      prismaService.onModuleDestroy.mockRejectedValue(
-        new Error('Shutdown error')
-      );
+      const shutdownError = new Error('Shutdown error');
+      prismaService.onModuleDestroy.mockRejectedValue(shutdownError);
       mongodbService.onModuleDestroy.mockResolvedValue(undefined);
       redisService.onModuleDestroy.mockResolvedValue(undefined);
       qdrantService.onModuleDestroy.mockResolvedValue(undefined);
 
       // Act & Assert
-      await expect(service.gracefulShutdown()).rejects.toThrow(
-        'Shutdown error'
-      );
+      await expect(service.gracefulShutdown()).rejects.toThrow(shutdownError);
+      
+      // Verify that the service is marked as not ready after failed shutdown
+      expect(service.isReady()).toBe(false);
     });
   });
 

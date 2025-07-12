@@ -14,9 +14,9 @@ import { MongodbService } from './mongodb.service';
           connection.plugin(require('mongoose-autopopulate'));
           return connection;
         },
-        maxPoolSize: 10,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000,
+        maxPoolSize: configService.get<number>('MONGODB_MAX_POOL_SIZE', 10),
+        serverSelectionTimeoutMS: configService.get<number>('MONGODB_SERVER_SELECTION_TIMEOUT', 5000),
+        socketTimeoutMS: configService.get<number>('MONGODB_SOCKET_TIMEOUT', 45000),
         ...(configService.get<string>('MONGODB_REPLICA_SET') && {
           replicaSet: configService.get<string>('MONGODB_REPLICA_SET'),
           readPreference: 'secondary',
