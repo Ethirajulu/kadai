@@ -1,5 +1,13 @@
-// Type definitions for Prisma - actual implementation will import from @prisma/client
-export interface PrismaClient {
+// Generic database client interface that can be implemented by different ORMs
+export interface DatabaseClient {
+  $transaction?<T>(
+    operation: (client: DatabaseClient) => Promise<T>,
+    options?: TransactionOptions
+  ): Promise<T>;
+}
+
+// Type alias for Prisma-specific client (to be used when Prisma is available)
+export type PrismaClient = DatabaseClient & {
   $transaction<T>(
     operation: (client: PrismaClient) => Promise<T>,
     options?: {
@@ -8,7 +16,7 @@ export interface PrismaClient {
       maxWait?: number;
     }
   ): Promise<T>;
-}
+};
 
 // ============================
 // TRANSACTION TYPES
@@ -60,8 +68,8 @@ export interface BatchOperation<T> {
 // TRANSACTION MANAGER
 // ============================
 
-export class TransactionManager {
-  private prisma: PrismaClient;
+export class TransactionManager<TClient extends DatabaseClient = PrismaClient> {
+  private client: TClient;
   private readonly defaultOptions: TransactionOptions = {
     timeout: 30000,
     isolationLevel: 'ReadCommitted',
@@ -70,12 +78,12 @@ export class TransactionManager {
     retryDelay: 1000,
   };
 
-  constructor(prisma: PrismaClient) {
-    this.prisma = prisma;
+  constructor(client: TClient) {
+    this.client = client;
   }
 
   async executeTransaction<T>(
-    operation: (tx: PrismaClient) => Promise<T>,
+    operation: (tx: TClient) => Promise<T>,
     options: TransactionOptions = {}
   ): Promise<TransactionResult<T>> {
     const finalOptions = { ...this.defaultOptions, ...options };
@@ -84,9 +92,13 @@ export class TransactionManager {
 
     while (retryCount <= (finalOptions.retryAttempts ?? 3)) {
       try {
-        const result = await this.prisma.$transaction(
-          async (tx: PrismaClient) => {
-            return await operation(tx);
+        if (!this.client.$transaction) {
+          throw new Error('Database client does not support transactions');
+        }
+        
+        const result = await this.client.$transaction(
+          async (tx: DatabaseClient) => {
+            return await operation(tx as TClient);
           },
           {
             timeout: finalOptions.timeout,
@@ -220,8 +232,8 @@ export class TransactionManager {
 // TRANSACTION DECORATORS
 // ============================
 
-export function Transactional(options: TransactionOptions = {}) {
-  return function <T extends { prisma: PrismaClient; transactionManager?: TransactionManager }>(
+export function Transactional<TClient extends DatabaseClient = PrismaClient>(options: TransactionOptions = {}) {
+  return function <T extends { client: TClient; transactionManager?: TransactionManager<TClient> }>(
     target: T,
     propertyKey: string,
     descriptor: PropertyDescriptor
@@ -230,18 +242,18 @@ export function Transactional(options: TransactionOptions = {}) {
 
     descriptor.value = async function (this: T, ...args: unknown[]) {
       const transactionManager =
-        this.transactionManager || new TransactionManager(this.prisma);
+        this.transactionManager || new TransactionManager(this.client);
 
-      return transactionManager.executeTransaction(async (tx: PrismaClient) => {
-        // Replace the prisma instance with the transaction instance
-        const originalPrisma = this.prisma;
-        this.prisma = tx;
+      return transactionManager.executeTransaction(async (tx: TClient) => {
+        // Replace the client instance with the transaction instance
+        const originalClient = this.client;
+        this.client = tx;
 
         try {
           return await originalMethod.apply(this, args);
         } finally {
-          // Restore the original prisma instance
-          this.prisma = originalPrisma;
+          // Restore the original client instance
+          this.client = originalClient;
         }
       }, options);
     };
@@ -250,8 +262,8 @@ export function Transactional(options: TransactionOptions = {}) {
   };
 }
 
-export function Retryable(maxRetries = 3, delay = 1000) {
-  return function <T extends { prisma: PrismaClient; transactionManager?: TransactionManager }>(
+export function Retryable<TClient extends DatabaseClient = PrismaClient>(maxRetries = 3, delay = 1000) {
+  return function <T extends { client: TClient; transactionManager?: TransactionManager<TClient> }>(
     target: T,
     propertyKey: string,
     descriptor: PropertyDescriptor
@@ -260,7 +272,7 @@ export function Retryable(maxRetries = 3, delay = 1000) {
 
     descriptor.value = async function (this: T, ...args: unknown[]) {
       const transactionManager =
-        this.transactionManager || new TransactionManager(this.prisma);
+        this.transactionManager || new TransactionManager(this.client);
 
       return transactionManager.executeWithRetry(
         () => originalMethod.apply(this, args),
