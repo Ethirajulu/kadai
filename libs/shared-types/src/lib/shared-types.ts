@@ -402,6 +402,47 @@ export interface HealthCheckResult {
 }
 
 // ============================
+// DATABASE VALIDATION TYPES
+// ============================
+
+export interface ValidationRule {
+  field: string;
+  type: 'required' | 'email' | 'phone' | 'uuid' | 'url' | 'range' | 'pattern';
+  message: string;
+  options?: {
+    min?: number;
+    max?: number;
+    pattern?: string;
+    allowEmpty?: boolean;
+  };
+}
+
+export interface ValidationSchema {
+  name: string;
+  rules: ValidationRule[];
+  strict?: boolean;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: ValidationError[];
+  warnings?: ValidationWarning[];
+}
+
+export interface ValidationError {
+  field: string;
+  message: string;
+  value?: any;
+  rule: string;
+}
+
+export interface ValidationWarning {
+  field: string;
+  message: string;
+  suggestion?: string;
+}
+
+// ============================
 // VALIDATION HELPERS
 // ============================
 
@@ -478,4 +519,211 @@ export interface SearchResult<T = unknown> {
   score: number;
   payload?: T;
   vector?: number[];
+}
+
+// ============================
+// DATABASE CONFIGURATION TYPES
+// ============================
+
+export interface DatabaseConnectionConfig {
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  database?: string;
+  ssl?: boolean;
+  timeout?: number;
+  retryAttempts?: number;
+  retryDelay?: number;
+}
+
+export interface PostgreSQLConfig extends DatabaseConnectionConfig {
+  schema?: string;
+  poolSize?: number;
+  connectionTimeoutMillis?: number;
+  idleTimeoutMillis?: number;
+}
+
+export interface MongoDBConfig extends DatabaseConnectionConfig {
+  authSource?: string;
+  replicaSet?: string;
+  maxPoolSize?: number;
+  minPoolSize?: number;
+  serverSelectionTimeoutMS?: number;
+}
+
+export interface RedisConfig extends Omit<DatabaseConnectionConfig, 'database'> {
+  db?: number;
+  keyPrefix?: string;
+  lazyConnect?: boolean;
+  keepAlive?: number;
+  family?: number;
+  clusterMode?: boolean;
+}
+
+export interface QdrantConfig extends DatabaseConnectionConfig {
+  apiKey?: string;
+  timeout?: number;
+  retries?: number;
+}
+
+export interface DatabaseManagerConfig {
+  reconnectAttempts: number;
+  reconnectDelay: number;
+  connectionTimeout: number;
+  enableGracefulShutdown: boolean;
+  enableHealthMonitoring: boolean;
+  healthCheckInterval: number;
+}
+
+// ============================
+// DATABASE MONITORING TYPES
+// ============================
+
+export interface DatabaseMetrics {
+  timestamp: Date;
+  postgresql: DatabaseServiceMetrics;
+  mongodb: DatabaseServiceMetrics;
+  redis: RedisMetrics;
+  qdrant: QdrantMetrics;
+}
+
+export interface DatabaseServiceMetrics {
+  connected: boolean;
+  responseTime: number;
+  connectionCount?: number;
+  errorRate?: number;
+}
+
+export interface RedisMetrics extends DatabaseServiceMetrics {
+  memory?: string;
+  keyspaceHits?: number;
+  keyspaceMisses?: number;
+}
+
+export interface QdrantMetrics extends DatabaseServiceMetrics {
+  collections?: number;
+  vectorCount?: number;
+}
+
+export interface DatabaseAlert {
+  id: string;
+  timestamp: Date;
+  level: 'info' | 'warning' | 'error' | 'critical';
+  database: 'postgresql' | 'mongodb' | 'redis' | 'qdrant' | 'system';
+  message: string;
+  details?: Record<string, any>;
+  resolved?: boolean;
+  resolvedAt?: Date;
+}
+
+export interface MonitoringConfig {
+  enabled: boolean;
+  interval: number;
+  alertThresholds: {
+    responseTime: number;
+    errorRate: number;
+    connectionCount: number;
+  };
+  retentionDays: number;
+  exportMetrics: boolean;
+  prometheusEndpoint?: string;
+}
+
+// ============================
+// DATABASE HEALTH CHECK TYPES
+// ============================
+
+export interface DatabaseHealthStatus {
+  service: string;
+  status: 'healthy' | 'unhealthy' | 'degraded';
+  responseTime: number;
+  error?: string;
+  lastChecked: Date;
+  details?: Record<string, any>;
+}
+
+export interface OverallHealthStatus {
+  status: 'healthy' | 'unhealthy' | 'degraded';
+  services: DatabaseHealthStatus[];
+  timestamp: Date;
+  summary: {
+    total: number;
+    healthy: number;
+    unhealthy: number;
+    degraded: number;
+  };
+}
+
+// ============================
+// TEST DATA FACTORY TYPES
+// ============================
+
+export interface TestDataFactoryConfig {
+  seedCount: {
+    users: number;
+    products: number;
+    orders: number;
+    messages: number;
+    sessions: number;
+    vectors: number;
+  };
+  scenarios: string[];
+  cleanup: boolean;
+  validation: boolean;
+}
+
+export interface DatabaseSeededData {
+  postgresql: {
+    users: number;
+    products: number;
+    orders: number;
+  };
+  mongodb: {
+    sessions: number;
+    messages: number;
+    analytics: number;
+  };
+  redis: {
+    cacheEntries: number;
+    sessions: number;
+  };
+  qdrant: {
+    collections: string[];
+    vectors: number;
+  };
+}
+
+// ============================
+// DATABASE OPERATION TYPES
+// ============================
+
+export interface DatabaseOperation {
+  id: string;
+  type: 'create' | 'read' | 'update' | 'delete' | 'migrate' | 'seed';
+  database: 'postgresql' | 'mongodb' | 'redis' | 'qdrant';
+  collection?: string;
+  duration: number;
+  success: boolean;
+  error?: string;
+  timestamp: Date;
+}
+
+export interface BulkOperation<T = any> {
+  operation: 'insert' | 'update' | 'delete';
+  data: T[];
+  options?: {
+    upsert?: boolean;
+    validate?: boolean;
+    skipDuplicates?: boolean;
+  };
+}
+
+export interface TransactionContext {
+  id: string;
+  databases: string[];
+  operations: DatabaseOperation[];
+  startTime: Date;
+  endTime?: Date;
+  status: 'pending' | 'committed' | 'rollback' | 'failed';
 }

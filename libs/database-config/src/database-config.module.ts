@@ -7,6 +7,7 @@ import { DatabaseHealthCheckService } from './health-check.service';
 import { DatabaseManager } from './database-manager.service';
 import { TestDataManager } from './factories/test-data-manager';
 import { DatabaseMonitorService } from './monitoring/database-monitor.service';
+import { DatabaseConfigService } from './config/database-config.service';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { DatabaseMonitorService } from './monitoring/database-monitor.service';
     DatabaseManager, 
     TestDataManager,
     DatabaseMonitorService,
+    DatabaseConfigService,
   ],
   exports: [
     MongodbConfigModule,
@@ -30,6 +32,7 @@ import { DatabaseMonitorService } from './monitoring/database-monitor.service';
     DatabaseManager,
     TestDataManager,
     DatabaseMonitorService,
+    DatabaseConfigService,
   ],
 })
 export class DatabaseConfigModule {}
