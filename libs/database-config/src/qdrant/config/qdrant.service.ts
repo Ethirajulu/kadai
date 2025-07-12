@@ -227,4 +227,22 @@ export class QdrantService implements OnModuleInit, OnModuleDestroy {
       throw error;
     }
   }
+
+  async cleanDb(): Promise<void> {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Cannot clean database in production environment');
+    }
+
+    try {
+      const collections = await this.listCollections();
+      const deletePromises = collections.map(collectionName => 
+        this.deleteCollection(collectionName)
+      );
+      await Promise.all(deletePromises);
+      this.logger.warn('All Qdrant collections deleted');
+    } catch (error) {
+      this.logger.error('Failed to clean Qdrant database:', error);
+      throw error;
+    }
+  }
 }

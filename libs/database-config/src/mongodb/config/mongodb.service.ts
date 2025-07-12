@@ -105,4 +105,9 @@ export class MongodbService implements OnModuleInit, OnModuleDestroy {
       throw error;
     }
   }
+
+  // Alias for consistency with other database services
+  async cleanDb(): Promise<void> {
+    return this.cleanDatabase();
+  }
 }

@@ -4,5 +4,8 @@ export * from './postgresql/config';
 export * from './redis/config';
 export * from './qdrant/config';
 export * from './health-check.service';
+export * from './database-manager.service';
+export * from './factories';
+export * from './monitoring';
 // Temporarily commenting out schemas export until decorator issues are resolved
 // export * from './mongodb/schemas';
