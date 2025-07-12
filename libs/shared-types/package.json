@@ -39,6 +39,7 @@
     ]
   },
   "dependencies": {
-    "@swc/helpers": "~0.5.11"
+    "@swc/helpers": "~0.5.11",
+    "zod": "^4.0.2"
   }
 }
