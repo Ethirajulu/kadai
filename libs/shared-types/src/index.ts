@@ -1,5 +1,5 @@
-export * from './lib/shared-types.js';
-export * from './lib/validation-schemas.js';
+export * from './lib/shared-types';
+export * from './lib/validation-schemas';
 
 // Export specific items from database-transactions to avoid conflicts
 export type {
@@ -12,11 +12,11 @@ export type {
   SagaStep,
   DistributedTransactionOptions,
   TransactionParticipant
-} from './lib/database-transactions.js';
+} from './lib/database-transactions';
 
 export type {
   TransactionContext as DatabaseTransactionContext
-} from './lib/database-transactions.js';
+} from './lib/database-transactions';
 
 export {
   TransactionManager,
@@ -28,7 +28,7 @@ export {
   TwoPhaseCommitManager,
   Transactional,
   Retryable
-} from './lib/database-transactions.js';
+} from './lib/database-transactions';
 
 // Re-export repository types with explicit naming to avoid conflicts
 export type {
@@ -47,7 +47,7 @@ export type {
   BulkOperationResult,
   RepositoryConfig,
   AuditLog
-} from './lib/repositories.js';
+} from './lib/repositories';
 
 export {
   BaseRepositoryImpl,
@@ -57,4 +57,4 @@ export {
   ValidationError as RepositoryValidationError,
   DatabaseError,
   TransactionError
-} from './lib/repositories.js';
+} from './lib/repositories';
