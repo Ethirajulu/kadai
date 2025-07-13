@@ -1,3 +1,2 @@
-export function testDbConfig(): string {
-  return 'test-db-config';
-}
+export * from './test-database-manager';
+export * from './factories';

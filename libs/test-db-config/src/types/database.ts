@@ -1,29 +1,40 @@
-import { Pool, PoolConfig } from 'pg';
-import { MongoClient, MongoClientOptions, Db } from 'mongodb';
-import { Redis, RedisOptions } from 'ioredis';
+import { Pool } from 'pg';
+import { MongoClient, Db } from 'mongodb';
+import { Redis } from 'ioredis';
 import { QdrantClient } from '@qdrant/js-client-rest';
+import {
+  PostgreSQLConfig,
+  MongoDBConfig,
+  RedisConfig,
+  QdrantConfig,
+  User,
+  Task,
+  Message,
+  VectorPoint,
+  TestDataFactoryConfig as SharedTestDataFactoryConfig
+} from '@kadai/shared-types';
 
-// PostgreSQL Types
-export interface PostgreSQLTestConfig {
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  password: string;
-  ssl?: boolean;
-  poolConfig?: PoolConfig;
+// Extend shared config types with test-specific properties
+export interface PostgreSQLTestConfig extends PostgreSQLConfig {
+  testDatabaseSuffix?: string;
 }
 
+export interface MongoDBTestConfig extends MongoDBConfig {
+  testDatabaseSuffix?: string;
+}
+
+export interface RedisTestConfig extends RedisConfig {
+  testKeyPrefix?: string;
+}
+
+export interface QdrantTestConfig extends QdrantConfig {
+  testCollectionPrefix?: string;
+}
+
+// Connection wrapper types
 export interface PostgreSQLConnection {
   pool: Pool;
   config: PostgreSQLTestConfig;
-}
-
-// MongoDB Types
-export interface MongoDBTestConfig {
-  uri: string;
-  database: string;
-  options?: MongoClientOptions;
 }
 
 export interface MongoDBConnection {
@@ -32,27 +43,9 @@ export interface MongoDBConnection {
   config: MongoDBTestConfig;
 }
 
-// Redis Types
-export interface RedisTestConfig {
-  host: string;
-  port: number;
-  password?: string;
-  keyPrefix?: string;
-  db?: number;
-  options?: RedisOptions;
-}
-
 export interface RedisConnection {
   client: Redis;
   config: RedisTestConfig;
-}
-
-// Qdrant Types
-export interface QdrantTestConfig {
-  url: string;
-  apiKey?: string;
-  collectionPrefix?: string;
-  timeout?: number;
 }
 
 export interface QdrantConnection {
@@ -60,59 +53,32 @@ export interface QdrantConnection {
   config: QdrantTestConfig;
 }
 
-// Factory Types
-export interface TestDataFactoryConfig {
+// Test-specific data types
+export interface TestDataFactoryConfig extends SharedTestDataFactoryConfig {
   locale?: string;
   seed?: number;
 }
 
-export interface UserTestData {
+export interface UserTestData extends Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'sellerProfile' | 'orders' | 'sessions' | 'tasks'> {
   id?: string;
-  email: string;
-  username: string;
-  firstName: string;
-  lastName: string;
-  role: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-export interface ProjectTestData {
+export interface TaskTestData extends Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'user'> {
   id?: string;
-  name: string;
-  description: string;
-  ownerId: string;
-  status: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-export interface TaskTestData {
+export interface ChatMessageTestData extends Omit<Message, '_id' | 'createdAt' | 'updatedAt' | 'expiresAt'> {
   id?: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: string;
-  projectId: string;
-  assigneeId?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-export interface ChatMessageTestData {
-  id?: string;
-  sessionId: string;
-  userId: string;
-  content: string;
-  messageType: string;
   timestamp?: Date;
   metadata?: Record<string, unknown>;
 }
 
-export interface VectorTestData {
-  id: string;
-  vector: number[];
-  payload: Record<string, unknown>;
+export interface VectorTestData extends VectorPoint {
+  // Additional test-specific properties if needed
 }
 
 // Database Manager Types
@@ -143,8 +109,8 @@ export interface CleanupOptions {
 
 export interface SeedOptions {
   userCount?: number;
-  projectCount?: number;
   taskCount?: number;
   messageCount?: number;
+  vectorCount?: number;
   createRelationships?: boolean;
 }
