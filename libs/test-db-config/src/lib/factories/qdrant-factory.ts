@@ -4,10 +4,10 @@ import { QdrantTestConfig, QdrantConnection } from '../../types';
 export class QdrantConnectionFactory {
   async createConnection(config: QdrantTestConfig): Promise<QdrantConnection> {
     // Build URL from host and port if needed
-    const url = config.host && config.host.startsWith('http') 
-      ? config.host 
-      : `http://${config.host || 'localhost'}:${config.port || 6333}`;
-      
+    const host = config.host || 'localhost';
+    const port = config.port || 6333;
+    const url = host.startsWith('http') ? host : `http://${host}:${port}`;
+
     const clientConfig: any = {
       url,
       timeout: config.timeout || 5000,
@@ -21,13 +21,17 @@ export class QdrantConnectionFactory {
 
     try {
       await this.testConnection(client);
-      
+
       return {
         client,
         config,
       };
     } catch (error) {
-      throw new Error(`Failed to create Qdrant connection: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create Qdrant connection: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
     }
   }
 
@@ -59,7 +63,7 @@ export class QdrantConnectionFactory {
   async createTestCollection(
     connection: QdrantConnection,
     collectionName: string,
-    vectorSize: number = 1536,
+    vectorSize = 1536,
     distance: 'Cosine' | 'Euclid' | 'Dot' = 'Cosine'
   ): Promise<void> {
     await connection.client.createCollection(collectionName, {
@@ -131,7 +135,7 @@ export class QdrantConnectionFactory {
     connection: QdrantConnection,
     collectionName: string,
     queryVector: number[],
-    limit: number = 10,
+    limit = 10,
     filter?: Record<string, any>
   ): Promise<any> {
     return await connection.client.search(collectionName, {

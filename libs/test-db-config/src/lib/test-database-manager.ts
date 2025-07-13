@@ -33,7 +33,9 @@ export class TestDatabaseManager {
       const connectionPromises: Promise<void>[] = [];
 
       if (this.config.postgresql) {
-        connectionPromises.push(this.initializePostgreSQL(this.config.postgresql));
+        connectionPromises.push(
+          this.initializePostgreSQL(this.config.postgresql)
+        );
       }
 
       if (this.config.mongodb) {
@@ -52,11 +54,17 @@ export class TestDatabaseManager {
       this.isInitialized = true;
     } catch (error) {
       await this.cleanup();
-      throw new Error(`Failed to initialize test databases: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to initialize test databases: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
     }
   }
 
-  private async initializePostgreSQL(config: PostgreSQLTestConfig): Promise<void> {
+  private async initializePostgreSQL(
+    config: PostgreSQLTestConfig
+  ): Promise<void> {
     const factory = new PostgreSQLConnectionFactory();
     this.connections.postgresql = await factory.createConnection(config);
   }
@@ -104,7 +112,7 @@ export class TestDatabaseManager {
     if (this.connections.postgresql) {
       checks.push(
         this.checkPostgreSQLHealth().then(
-          (healthy) => (healthStatus.postgresql = healthy)
+          (healthy) => void (healthStatus.postgresql = healthy)
         )
       );
     }
@@ -112,7 +120,7 @@ export class TestDatabaseManager {
     if (this.connections.mongodb) {
       checks.push(
         this.checkMongoDBHealth().then(
-          (healthy) => (healthStatus.mongodb = healthy)
+          (healthy) => void (healthStatus.mongodb = healthy)
         )
       );
     }
@@ -120,7 +128,7 @@ export class TestDatabaseManager {
     if (this.connections.redis) {
       checks.push(
         this.checkRedisHealth().then(
-          (healthy) => (healthStatus.redis = healthy)
+          (healthy) => void (healthStatus.redis = healthy)
         )
       );
     }
@@ -128,7 +136,7 @@ export class TestDatabaseManager {
     if (this.connections.qdrant) {
       checks.push(
         this.checkQdrantHealth().then(
-          (healthy) => (healthStatus.qdrant = healthy)
+          (healthy) => void (healthStatus.qdrant = healthy)
         )
       );
     }
@@ -148,7 +156,7 @@ export class TestDatabaseManager {
 
   private async checkMongoDBHealth(): Promise<boolean> {
     try {
-      await this.connections.mongodb?.client.db('admin').ping();
+      await this.connections.mongodb?.client.db('admin').admin().ping();
       return true;
     } catch {
       return false;

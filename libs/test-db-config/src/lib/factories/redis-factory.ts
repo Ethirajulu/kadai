@@ -4,16 +4,17 @@ import { RedisTestConfig, RedisConnection } from '../../types';
 export class RedisConnectionFactory {
   async createConnection(config: RedisTestConfig): Promise<RedisConnection> {
     const redisConfig = {
-      host: config.host,
-      port: config.port,
+      host: config.host || 'localhost',
+      port: config.port || 6379,
       password: config.password,
       db: config.db || 0,
       keyPrefix: config.keyPrefix || 'test:',
       connectTimeout: 2000,
-      lazyConnect: true,
+      lazyConnect: config.lazyConnect !== false, // Default to true
       retryDelayOnFailover: 100,
       maxRetriesPerRequest: 3,
-      ...config.options,
+      keepAlive: config.keepAlive,
+      family: config.family,
     };
 
     const client = new Redis(redisConfig);

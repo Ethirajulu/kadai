@@ -11,23 +11,33 @@ import {
   Task,
   Message,
   VectorPoint,
-  TestDataFactoryConfig as SharedTestDataFactoryConfig
+  TestDataFactoryConfig as SharedTestDataFactoryConfig,
 } from '@kadai/shared-types';
 
 // Extend shared config types with test-specific properties
-export interface PostgreSQLTestConfig extends PostgreSQLConfig {
+export interface PostgreSQLTestConfig
+  extends Omit<PostgreSQLConfig, 'host' | 'port'> {
+  host?: string;
+  port?: number;
   testDatabaseSuffix?: string;
 }
 
-export interface MongoDBTestConfig extends MongoDBConfig {
+export interface MongoDBTestConfig
+  extends Omit<MongoDBConfig, 'host' | 'port'> {
+  host?: string;
+  port?: number;
   testDatabaseSuffix?: string;
 }
 
-export interface RedisTestConfig extends RedisConfig {
+export interface RedisTestConfig extends Omit<RedisConfig, 'host' | 'port'> {
+  host?: string;
+  port?: number;
   testKeyPrefix?: string;
 }
 
-export interface QdrantTestConfig extends QdrantConfig {
+export interface QdrantTestConfig extends Omit<QdrantConfig, 'host' | 'port'> {
+  host?: string;
+  port?: number;
   testCollectionPrefix?: string;
 }
 
@@ -59,27 +69,40 @@ export interface TestDataFactoryConfig extends SharedTestDataFactoryConfig {
   seed?: number;
 }
 
-export interface UserTestData extends Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'sellerProfile' | 'orders' | 'sessions' | 'tasks'> {
+export interface UserTestData
+  extends Omit<
+    User,
+    | 'id'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'sellerProfile'
+    | 'orders'
+    | 'sessions'
+    | 'tasks'
+  > {
   id?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-export interface TaskTestData extends Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'user'> {
+export interface TaskTestData
+  extends Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'user'> {
   id?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-export interface ChatMessageTestData extends Omit<Message, '_id' | 'createdAt' | 'updatedAt' | 'expiresAt'> {
+export interface ChatMessageTestData
+  extends Omit<
+    Message,
+    '_id' | 'createdAt' | 'updatedAt' | 'expiresAt' | 'timestamp'
+  > {
   id?: string;
   timestamp?: Date;
   metadata?: Record<string, unknown>;
 }
 
-export interface VectorTestData extends VectorPoint {
-  // Additional test-specific properties if needed
-}
+export type VectorTestData = VectorPoint;
 
 // Database Manager Types
 export interface DatabaseConnections {

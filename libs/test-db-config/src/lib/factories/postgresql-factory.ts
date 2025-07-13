@@ -4,8 +4,8 @@ import { PostgreSQLTestConfig, PostgreSQLConnection } from '../../types';
 export class PostgreSQLConnectionFactory {
   async createConnection(config: PostgreSQLTestConfig): Promise<PostgreSQLConnection> {
     const poolConfig = {
-      host: config.host,
-      port: config.port,
+      host: config.host || 'localhost',
+      port: config.port || 5432,
       database: config.database,
       user: config.username,
       password: config.password,

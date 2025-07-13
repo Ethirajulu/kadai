@@ -1,5 +1,5 @@
-import { TestDatabaseManager } from './test-database-manager.js';
-import { PostgreSQLConnectionFactory } from './factories/postgresql-factory.js';
+import { TestDatabaseManager } from './test-database-manager';
+import { PostgreSQLConnectionFactory } from './factories/postgresql-factory';
 
 describe('testDbConfig', () => {
   it('should export TestDatabaseManager', () => {
