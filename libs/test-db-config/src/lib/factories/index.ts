@@ -6,3 +6,7 @@ export * from './user-data-factory';
 export * from './task-data-factory';
 export * from './message-data-factory';
 export * from './vector-data-factory';
+export * from './product-data-factory';
+export * from './order-data-factory';
+export * from './seller-profile-data-factory';
+export * from './relationship-aware-factory';
