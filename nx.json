@@ -14,14 +14,12 @@
     ],
     "sharedGlobals": []
   },
-  "nxCloudId": "686cf853bba96b7d8cc89d93",
+  "nxCloudId": "6874fd85d4eccd26fa54a2ca",
   "plugins": [
     {
       "plugin": "@nx/js/typescript",
       "options": {
-        "typecheck": {
-          "targetName": "typecheck"
-        },
+        "typecheck": { "targetName": "typecheck" },
         "build": {
           "targetName": "build",
           "configName": "tsconfig.lib.json",
@@ -42,17 +40,10 @@
         "watchDepsTargetName": "watch-deps"
       }
     },
-    {
-      "plugin": "@nx/eslint/plugin",
-      "options": {
-        "targetName": "lint"
-      }
-    },
+    { "plugin": "@nx/eslint/plugin", "options": { "targetName": "lint" } },
     {
       "plugin": "@nx/jest/plugin",
-      "options": {
-        "targetName": "test"
-      },
+      "options": { "targetName": "test" },
       "exclude": [
         "apps/api-gateway-e2e/**/*",
         "apps/product-service-e2e/**/*",
@@ -99,20 +90,11 @@
         "watchDepsTargetName": "watch-deps"
       }
     },
-    {
-      "plugin": "@nx/playwright/plugin",
-      "options": {
-        "targetName": "e2e"
-      }
-    },
+    { "plugin": "@nx/playwright/plugin", "options": { "targetName": "e2e" } },
     {
       "plugin": "@nx/js/typescript",
       "include": ["libs/database-config/*"],
-      "options": {
-        "typecheck": {
-          "targetName": "typecheck"
-        }
-      }
+      "options": { "typecheck": { "targetName": "typecheck" } }
     }
   ],
   "targetDefaults": {
@@ -121,21 +103,10 @@
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"]
     },
-    "test": {
-      "dependsOn": ["^build"]
-    }
+    "test": { "dependsOn": ["^build"] }
   },
   "generators": {
-    "@nx/react": {
-      "library": {
-        "unitTestRunner": "vitest"
-      }
-    },
-    "@nx/next": {
-      "application": {
-        "style": "tailwind",
-        "linter": "eslint"
-      }
-    }
+    "@nx/react": { "library": { "unitTestRunner": "vitest" } },
+    "@nx/next": { "application": { "style": "tailwind", "linter": "eslint" } }
   }
 }
