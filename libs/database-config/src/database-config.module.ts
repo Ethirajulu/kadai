@@ -5,7 +5,6 @@ import { RedisConfigModule } from './redis/config/redis-config.module';
 import { QdrantConfigModule } from './qdrant/config/qdrant-config.module';
 import { DatabaseHealthCheckService } from './health-check.service';
 import { DatabaseManager } from './database-manager.service';
-import { TestDataManager } from './factories/test-data-manager';
 import { DatabaseMonitorService } from './monitoring/database-monitor.service';
 import { DatabaseConfigService } from './config/database-config.service';
 
@@ -19,7 +18,6 @@ import { DatabaseConfigService } from './config/database-config.service';
   providers: [
     DatabaseHealthCheckService, 
     DatabaseManager, 
-    TestDataManager,
     DatabaseMonitorService,
     DatabaseConfigService,
   ],
@@ -30,7 +28,6 @@ import { DatabaseConfigService } from './config/database-config.service';
     QdrantConfigModule,
     DatabaseHealthCheckService,
     DatabaseManager,
-    TestDataManager,
     DatabaseMonitorService,
     DatabaseConfigService,
   ],

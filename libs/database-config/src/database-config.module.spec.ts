@@ -34,7 +34,7 @@ describe('DatabaseConfigModule', () => {
     expect(typeof DatabaseConfigModule).toBe('function');
   });
 
-  it.skip('should have correct module metadata', () => {
+  it('should have correct module metadata', () => {
     const imports = Reflect.getMetadata('imports', DatabaseConfigModule);
     const exports = Reflect.getMetadata('exports', DatabaseConfigModule);
 
@@ -43,6 +43,6 @@ describe('DatabaseConfigModule', () => {
     expect(Array.isArray(imports)).toBe(true);
     expect(Array.isArray(exports)).toBe(true);
     expect(imports.length).toBe(4); // MongodbConfigModule, PostgresqlConfigModule, RedisConfigModule, QdrantConfigModule
-    expect(exports.length).toBe(5); // MongodbConfigModule, PostgresqlConfigModule, RedisConfigModule, QdrantConfigModule, DatabaseHealthCheckService
+    expect(exports.length).toBe(8); // All modules + services
   });
 });

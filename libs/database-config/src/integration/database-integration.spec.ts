@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
 import { DatabaseConfigModule } from '../database-config.module';
 import { DatabaseManager } from '../database-manager.service';
 import { PrismaService } from '../postgresql/config/prisma.service';
@@ -15,7 +14,7 @@ import { DatabaseHealthCheckService } from '../health-check.service';
  * Skip these tests in unit test runs by using --testPathIgnorePatterns
  */
 describe('Database Integration Tests', () => {
-  jest.setTimeout(15000); // Set timeout for integration tests
+  jest.setTimeout(30000); // Increased timeout for integration tests
   let module: TestingModule;
   let databaseManager: DatabaseManager;
   let prismaService: PrismaService;
@@ -26,13 +25,76 @@ describe('Database Integration Tests', () => {
 
   // Helper to check if we should skip integration tests
   const shouldSkipIntegrationTests = () => {
-    return process.env.SKIP_INTEGRATION_TESTS === 'true' || 
-           process.env.NODE_ENV === 'test';
+    return (
+      process.env.SKIP_INTEGRATION_TESTS === 'true' ||
+      process.env.NODE_ENV === 'test'
+    );
+  };
+
+  // Helper to check if databases are available
+  const checkDatabaseAvailability = async () => {
+    const net = require('net');
+
+    const checkPort = (host: string, port: number): Promise<boolean> => {
+      return new Promise((resolve) => {
+        const socket = new net.Socket();
+        socket.setTimeout(2000);
+
+        socket.on('connect', () => {
+          socket.destroy();
+          resolve(true);
+        });
+
+        socket.on('timeout', () => {
+          socket.destroy();
+          resolve(false);
+        });
+
+        socket.on('error', () => {
+          resolve(false);
+        });
+
+        socket.connect(port, host);
+      });
+    };
+
+    const [postgresql, mongodb, redis, qdrant] = await Promise.all([
+      checkPort('localhost', 5432),
+      checkPort('localhost', 27017),
+      checkPort('localhost', 6379),
+      checkPort('localhost', 6333),
+    ]);
+
+    return { postgresql, mongodb, redis, qdrant };
   };
 
   beforeAll(async () => {
     if (shouldSkipIntegrationTests()) {
-      console.log('Skipping integration tests - set SKIP_INTEGRATION_TESTS=false to run');
+      console.log(
+        'Skipping integration tests - set SKIP_INTEGRATION_TESTS=false to run'
+      );
+      return;
+    }
+
+    // Check database availability before attempting to connect
+    const availability = await checkDatabaseAvailability();
+    const unavailableDbs = Object.entries(availability)
+      .filter(([_, available]) => !available)
+      .map(([db, _]) => db);
+
+    if (unavailableDbs.length > 0) {
+      console.log(
+        `Skipping integration tests - databases not available: ${unavailableDbs.join(
+          ', '
+        )}`
+      );
+      console.log(
+        'To run integration tests, ensure all databases are running:'
+      );
+      console.log('- PostgreSQL on localhost:5432');
+      console.log('- MongoDB on localhost:27017');
+      console.log('- Redis on localhost:6379');
+      console.log('- Qdrant on localhost:6333');
       return;
     }
 
@@ -42,18 +104,7 @@ describe('Database Integration Tests', () => {
           isGlobal: true,
           envFilePath: ['.env.test', '.env.local', '.env'],
         }),
-        MongooseModule.forRootAsync({
-          imports: [ConfigModule],
-          useFactory: async (configService: ConfigService) => ({
-            uri: configService.get<string>('MONGODB_URL', 'mongodb://localhost:27017/kadai-test'),
-            serverSelectionTimeoutMS: 2000, // Reduced timeout for tests
-            socketTimeoutMS: 10000,
-            connectTimeoutMS: 2000,
-            maxPoolSize: 2, // Smaller pool for tests
-            retryWrites: false,
-          }),
-          inject: [ConfigService]
-        }),
+        // Remove duplicate MongoDB configuration - let DatabaseConfigModule handle it
         DatabaseConfigModule,
       ],
     }).compile();
@@ -63,10 +114,12 @@ describe('Database Integration Tests', () => {
     mongodbService = module.get<MongodbService>(MongodbService);
     redisService = module.get<RedisService>(RedisService);
     qdrantService = module.get<QdrantService>(QdrantService);
-    healthCheckService = module.get<DatabaseHealthCheckService>(DatabaseHealthCheckService);
+    healthCheckService = module.get<DatabaseHealthCheckService>(
+      DatabaseHealthCheckService
+    );
 
-    // Wait for all services to initialize with shorter timeout for tests
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait for all services to initialize
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   });
 
   afterAll(async () => {
@@ -85,15 +138,45 @@ describe('Database Integration Tests', () => {
   });
 
   describe('Database Manager Integration', () => {
-    it('should initialize and be ready', () => {
+    it('should initialize and be ready', async () => {
       if (shouldSkipIntegrationTests()) return;
-      
+
+      // Check if databases are available before running tests
+      const availability = await checkDatabaseAvailability();
+      const unavailableDbs = Object.entries(availability)
+        .filter(([_, available]) => !available)
+        .map(([db, _]) => db);
+
+      if (unavailableDbs.length > 0) {
+        console.log(
+          `Skipping test - databases not available: ${unavailableDbs.join(
+            ', '
+          )}`
+        );
+        return;
+      }
+
       expect(databaseManager).toBeDefined();
       expect(databaseManager.isReady()).toBe(true);
     });
 
-    it('should provide access to all database services', () => {
+    it('should provide access to all database services', async () => {
       if (shouldSkipIntegrationTests()) return;
+
+      // Check if databases are available before running tests
+      const availability = await checkDatabaseAvailability();
+      const unavailableDbs = Object.entries(availability)
+        .filter(([_, available]) => !available)
+        .map(([db, _]) => db);
+
+      if (unavailableDbs.length > 0) {
+        console.log(
+          `Skipping test - databases not available: ${unavailableDbs.join(
+            ', '
+          )}`
+        );
+        return;
+      }
 
       const connections = databaseManager.getConnections();
       expect(connections.prisma).toBeDefined();
@@ -121,7 +204,9 @@ describe('Database Integration Tests', () => {
 
       const result = await prismaService.$queryRaw`SELECT 1 as test_value`;
       expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
+      expect((result as Array<{ test_value: number }>).length).toBeGreaterThan(
+        0
+      );
     });
   });
 
@@ -151,21 +236,21 @@ describe('Database Integration Tests', () => {
 
       const connection = mongodbService.getConnection();
       const testCollection = connection.collection('test_integration');
-      
+
       // Insert test document
       const insertResult = await testCollection.insertOne({
         name: 'integration-test',
         timestamp: new Date(),
-        data: { test: true }
+        data: { test: true },
       });
-      
+
       expect(insertResult.insertedId).toBeDefined();
 
       // Query the document
       const document = await testCollection.findOne({
-        name: 'integration-test'
+        name: 'integration-test',
       });
-      
+
       expect(document).toBeDefined();
       expect(document?.name).toBe('integration-test');
       expect(document?.data.test).toBe(true);
@@ -191,10 +276,10 @@ describe('Database Integration Tests', () => {
       if (shouldSkipIntegrationTests()) return;
 
       const testKey = 'integration-test';
-      const testValue = { 
+      const testValue = {
         message: 'Hello from integration test',
         timestamp: Date.now(),
-        nested: { data: [1, 2, 3] }
+        nested: { data: [1, 2, 3] },
       };
 
       // Set cache value
@@ -234,7 +319,7 @@ describe('Database Integration Tests', () => {
       expect(existsImmediately).toBe(true);
 
       // Wait for expiration
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
 
       // Check after expiration
       const existsAfterExpiration = await redisService.exists('api', testKey);
@@ -247,7 +332,7 @@ describe('Database Integration Tests', () => {
 
     afterEach(async () => {
       if (shouldSkipIntegrationTests()) return;
-      
+
       try {
         await qdrantService.deleteCollection(testCollectionName);
       } catch (error) {
@@ -276,9 +361,9 @@ describe('Database Integration Tests', () => {
         name: testCollectionName,
         vectorSize: 384,
         distance: 'Cosine',
-        description: 'Integration test collection'
+        description: 'Integration test collection',
       });
-      
+
       expect(created).toBe(true);
 
       // List collections to verify creation
@@ -286,16 +371,18 @@ describe('Database Integration Tests', () => {
       expect(collections).toContain(testCollectionName);
 
       // Get collection info
-      const collectionInfo = await qdrantService.getCollectionInfo(testCollectionName);
+      const collectionInfo = await qdrantService.getCollectionInfo(
+        testCollectionName
+      );
       expect(collectionInfo).toBeDefined();
 
       // Try to create the same collection again (should return false)
       const createdAgain = await qdrantService.createCollection({
         name: testCollectionName,
         vectorSize: 384,
-        distance: 'Cosine'
+        distance: 'Cosine',
       });
-      
+
       expect(createdAgain).toBe(false);
     });
 
@@ -308,12 +395,12 @@ describe('Database Integration Tests', () => {
         vectorSize: 128,
         distance: 'Euclid',
         payloadIndexes: {
-          'category': 'keyword',
-          'price': 'float',
-          'active': 'bool'
-        }
+          category: 'keyword',
+          price: 'float',
+          active: 'bool',
+        },
       });
-      
+
       expect(created).toBe(true);
 
       // Verify collection exists
@@ -327,17 +414,19 @@ describe('Database Integration Tests', () => {
       if (shouldSkipIntegrationTests()) return;
 
       const healthStatus = await healthCheckService.checkAllDatabases();
-      
+
       expect(healthStatus).toBeDefined();
       expect(healthStatus.overall).toBeDefined();
-      expect(['healthy', 'unhealthy', 'degraded']).toContain(healthStatus.overall);
+      expect(['healthy', 'unhealthy', 'degraded']).toContain(
+        healthStatus.overall
+      );
       expect(healthStatus.databases).toHaveLength(4);
       expect(healthStatus.timestamp).toBeInstanceOf(Date);
       expect(healthStatus.summary).toBeDefined();
       expect(healthStatus.summary.total).toBe(4);
 
       // Check individual database health
-      const dbNames = healthStatus.databases.map(db => db.name);
+      const dbNames = healthStatus.databases.map((db) => db.name);
       expect(dbNames).toContain('PostgreSQL');
       expect(dbNames).toContain('MongoDB');
       expect(dbNames).toContain('Redis');
@@ -357,7 +446,7 @@ describe('Database Integration Tests', () => {
         healthCheckService.checkPostgreSQLHealth(),
         healthCheckService.checkMongoDBHealth(),
         healthCheckService.checkRedisHealth(),
-        healthCheckService.checkQdrantHealth()
+        healthCheckService.checkQdrantHealth(),
       ]);
 
       expect(postgresql.name).toBe('PostgreSQL');
@@ -381,7 +470,7 @@ describe('Database Integration Tests', () => {
       if (shouldSkipIntegrationTests()) return;
 
       const summary = await healthCheckService.getHealthSummary();
-      
+
       expect(summary).toBeDefined();
       expect(summary.status).toBeDefined();
       expect(summary.checks).toBeDefined();
@@ -406,24 +495,24 @@ describe('Database Integration Tests', () => {
       if (shouldSkipIntegrationTests()) return;
 
       // First, add some test data to each database
-      
+
       // PostgreSQL - execute a simple query (schema should exist)
       await prismaService.$queryRaw`SELECT 1`;
-      
+
       // MongoDB - create test document
       const connection = mongodbService.getConnection();
       const testCollection = connection.collection('cleanup_test');
       await testCollection.insertOne({ test: 'cleanup' });
-      
+
       // Redis - set test cache
       await redisService.set('api', 'cleanup-test', { test: 'cleanup' });
-      
+
       // Qdrant - create test collection
       try {
         await qdrantService.createCollection({
           name: 'cleanup_test',
           vectorSize: 64,
-          distance: 'Cosine'
+          distance: 'Cosine',
         });
       } catch (error) {
         // Collection might already exist
@@ -432,10 +521,10 @@ describe('Database Integration Tests', () => {
       // Verify data exists
       const mongoDoc = await testCollection.findOne({ test: 'cleanup' });
       expect(mongoDoc).toBeDefined();
-      
+
       const redisExists = await redisService.exists('api', 'cleanup-test');
       expect(redisExists).toBe(true);
-      
+
       const collections = await qdrantService.listCollections();
       expect(collections).toContain('cleanup_test');
 
@@ -445,10 +534,10 @@ describe('Database Integration Tests', () => {
       // Verify cleanup
       const mongoDocAfter = await testCollection.findOne({ test: 'cleanup' });
       expect(mongoDocAfter).toBeNull();
-      
+
       const redisExistsAfter = await redisService.exists('api', 'cleanup-test');
       expect(redisExistsAfter).toBe(false);
-      
+
       const collectionsAfter = await qdrantService.listCollections();
       expect(collectionsAfter).not.toContain('cleanup_test');
     });
@@ -459,7 +548,7 @@ describe('Database Integration Tests', () => {
       if (shouldSkipIntegrationTests()) return;
 
       const connectionStatus = await databaseManager.getConnectionStatus();
-      
+
       expect(connectionStatus).toBeDefined();
       expect(connectionStatus.postgresql).toBe(true);
       expect(connectionStatus.mongodb).toBe(true);

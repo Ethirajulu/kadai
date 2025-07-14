@@ -8,10 +8,14 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor(private configService: ConfigService) {
+    // Clean up DATABASE_URL by removing inline comments and trimming
+    const rawDatabaseUrl = configService.get<string>('DATABASE_URL');
+    const cleanDatabaseUrl = rawDatabaseUrl?.split('#')[0]?.trim();
+
     super({
       datasources: {
         db: {
-          url: configService.get<string>('DATABASE_URL'),
+          url: cleanDatabaseUrl,
         },
       },
       log:
@@ -60,9 +64,13 @@ export class PrismaService
     database: string;
   }> {
     try {
-      const result = await this.$queryRaw<Array<{ version: string }>>`SELECT version()`;
-      const dbResult = await this.$queryRaw<Array<{ current_database: string }>>`SELECT current_database()`;
-      
+      const result = await this.$queryRaw<
+        Array<{ version: string }>
+      >`SELECT version()`;
+      const dbResult = await this.$queryRaw<
+        Array<{ current_database: string }>
+      >`SELECT current_database()`;
+
       return {
         connected: true,
         version: result[0]?.version || 'unknown',
