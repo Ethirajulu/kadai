@@ -16,7 +16,7 @@ import { OrderDataFactory } from './order-data-factory';
 import { TaskDataFactory } from './task-data-factory';
 import { MessageDataFactory } from './message-data-factory';
 import { VectorDataFactory } from './vector-data-factory';
-import { UserRole } from '@kadai/shared-types';
+import { UserRole } from '../../types/database';
 
 export interface RelatedDataSet {
   users: UserTestData[];
@@ -396,7 +396,7 @@ export class RelationshipAwareFactory {
             category: 'conversation',
             sessionId: message.sessionId,
             userId: message.userId,
-            platform: message.platform.toLowerCase(),
+            platform: message.platform?.toLowerCase() || 'whatsapp',
             intent: faker.helpers.arrayElement([
               'inquiry',
               'purchase',

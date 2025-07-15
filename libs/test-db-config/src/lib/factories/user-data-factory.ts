@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
 import { UserTestData, TestDataFactoryConfig } from '../../types';
-import { UserRole } from '@kadai/shared-types';
+import { UserRole } from '../../types/database';
 
 export class UserDataFactory {
   constructor(private config?: TestDataFactoryConfig) {}

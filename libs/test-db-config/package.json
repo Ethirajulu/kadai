@@ -44,8 +44,7 @@
     "mongodb": "^6.17.0",
     "ioredis": "^5.6.1",
     "@qdrant/js-client-rest": "^1.14.1",
-    "@faker-js/faker": "^9.9.0",
-    "@kadai/shared-types": "0.0.1"
+    "@faker-js/faker": "^9.9.0"
   },
   "devDependencies": {
     "@types/pg": "^8.15.4"

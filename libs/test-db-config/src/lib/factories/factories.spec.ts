@@ -9,7 +9,7 @@ import {
   VectorDataFactory,
   RelationshipAwareFactory,
 } from './index';
-import { UserRole, OrderStatus, TaskStatus } from '@kadai/shared-types';
+import { UserRole, OrderStatus, TaskStatus } from '../../types/database';
 
 describe('Data Factories', () => {
   beforeEach(() => {

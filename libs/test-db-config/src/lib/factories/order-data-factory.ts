@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
 import { OrderTestData, TestDataFactoryConfig } from '../../types';
-import { OrderStatus } from '@kadai/shared-types';
+import { OrderStatus } from '../../types/database';
 
 export class OrderDataFactory {
   constructor(private config?: TestDataFactoryConfig) {}

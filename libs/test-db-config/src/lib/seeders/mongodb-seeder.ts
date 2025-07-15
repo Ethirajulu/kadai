@@ -257,10 +257,11 @@ export class MongoDBSeeder extends BaseSeeder implements MongoDBSeedScript {
   ): Promise<SeedResult> {
     // Group messages by session to create conversation summaries
     const sessionGroups = messages.reduce((groups, message) => {
-      if (!groups[message.sessionId]) {
-        groups[message.sessionId] = [];
+      const sessionId = message.sessionId || 'default-session';
+      if (!groups[sessionId]) {
+        groups[sessionId] = [];
       }
-      groups[message.sessionId].push(message);
+      groups[sessionId].push(message);
       return groups;
     }, {} as Record<string, ChatMessageTestData[]>);
 

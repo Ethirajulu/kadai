@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
 import { TaskTestData, TestDataFactoryConfig } from '../../types';
-import { TaskStatus } from '@kadai/shared-types';
+import { TaskStatus } from '../../types/database';
 
 export class TaskDataFactory {
   constructor(private config?: TestDataFactoryConfig) {}
