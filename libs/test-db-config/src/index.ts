@@ -35,6 +35,42 @@ export {
   CleanupUtils,
 } from './lib/index';
 
+// Export Jest integration utilities
+export {
+  // Jest setup and configuration
+  JestTestSetup,
+  setupJestEnvironment,
+  teardownJestEnvironment,
+  getJestSetup,
+  
+  // Custom Jest matchers
+  DatabaseMatchers,
+  registerCustomMatchers,
+  createDatabaseMatchers,
+  
+  // Debug utilities
+  DatabaseDebugger,
+  DebugUtils,
+  debugTest,
+  
+  // Configuration management
+  TestConfigurationManager,
+  ConfigUtils,
+  detectEnvironment,
+  autoConfigureEnvironment,
+} from './lib/jest';
+
+// Export Jest types
+export type {
+  JestSetupConfig,
+  CustomMatcherContext,
+  DebugContext,
+  ConnectionDiagnostics,
+  DatabaseStateSnapshot,
+  DebugReport,
+  TestEnvironmentConfig,
+} from './lib/jest';
+
 // Export verification types
 export type {
   VerificationReport,

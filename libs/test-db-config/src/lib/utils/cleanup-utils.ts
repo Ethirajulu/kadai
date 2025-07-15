@@ -198,7 +198,7 @@ export class CleanupUtils {
    */
   static async waitForConnections(
     connections: DatabaseConnections,
-    timeoutMs: number = 10000
+    timeoutMs = 10000
   ): Promise<void> {
     const startTime = Date.now();
     const checkConnection = async (name: string, connection: any): Promise<void> => {
@@ -271,8 +271,8 @@ export class CleanupUtils {
    * Create retry wrapper for cleanup operations
    */
   static createRetryWrapper<T>(
-    maxAttempts: number = 3,
-    delayMs: number = 1000
+    maxAttempts = 3,
+    delayMs = 1000
   ): (operation: () => Promise<T>) => Promise<T> {
     return async (operation: () => Promise<T>): Promise<T> => {
       let lastError: Error | null = null;

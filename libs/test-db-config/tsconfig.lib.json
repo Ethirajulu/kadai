@@ -4,11 +4,7 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo"
   },
-  "references": [
-    {
-      "path": "../shared-types/tsconfig.lib.json"
-    }
-  ],
+  "references": [],
   "include": ["src/**/*.ts"],
   "exclude": ["jest.config.ts", "src/**/*.spec.ts", "src/**/*.test.ts"]
 }
