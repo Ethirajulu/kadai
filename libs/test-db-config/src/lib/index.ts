@@ -25,5 +25,23 @@ export {
 // Utilities
 export { CleanupUtils } from './utils/cleanup-utils';
 
+// Verification and reporting
+export {
+  CleanupVerifier,
+  VerificationReporter,
+  generateVerificationReport,
+} from './verification';
+
+// Re-export verification types
+export type {
+  VerificationReport,
+  VerificationConfig,
+  VerificationMetrics,
+  CustomValidator,
+  ReportFormat,
+  ReportOptions,
+  ConsoleReportOptions,
+} from './verification';
+
 // Re-export existing database config
 export * from './test-db-config';

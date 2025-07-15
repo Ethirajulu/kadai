@@ -56,7 +56,8 @@ export interface CleanupIssue {
     | 'data_remaining'
     | 'schema_modified'
     | 'connection_issue'
-    | 'performance_degradation';
+    | 'performance_degradation'
+    | 'verification_failed';
   severity: 'critical' | 'warning' | 'info';
   location: string;
   description: string;

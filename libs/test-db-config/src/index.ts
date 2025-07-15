@@ -26,6 +26,22 @@ export {
   TestAutomationManager,
   createTestAutomation,
   
+  // Verification and reporting
+  CleanupVerifier,
+  VerificationReporter,
+  generateVerificationReport,
+  
   // Utilities
   CleanupUtils,
+} from './lib/index';
+
+// Export verification types
+export type {
+  VerificationReport,
+  VerificationConfig,
+  VerificationMetrics,
+  CustomValidator,
+  ReportFormat,
+  ReportOptions,
+  ConsoleReportOptions,
 } from './lib/index';
