@@ -71,6 +71,9 @@
     },
     {
       "path": "./libs/test-db-config"
+    },
+    {
+      "path": "./libs/auth-service"
     }
   ]
 }

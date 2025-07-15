@@ -1,0 +1,51 @@
+{
+  "name": "@kadai/auth-service",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "nx": {
+    "name": "auth-service",
+    "tags": [
+      "libs",
+      "auth",
+      "security"
+    ],
+    "targets": {
+      "build": {
+        "executor": "@nx/js:tsc",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "outputPath": "dist/libs/auth-service",
+          "tsConfig": "libs/auth-service/tsconfig.lib.json",
+          "packageJson": "libs/auth-service/package.json",
+          "main": "libs/auth-service/src/index.ts",
+          "assets": [
+            "libs/auth-service/*.md"
+          ]
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "@nestjs/common": "*",
+    "@nestjs/config": "*",
+    "@nestjs/jwt": "*",
+    "@nestjs/passport": "*",
+    "class-validator": "*",
+    "class-transformer": "*"
+  }
+}

@@ -29,6 +29,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "paths": {
+      "@kadai/auth-service": ["libs/auth-service/src/index.ts"],
       "@kadai/database-config": ["libs/database-config/src/index.ts"],
       "@kadai/shared-types": ["libs/shared-types/src/index.ts"],
       "@kadai/shared-ui": ["libs/shared-ui/src/index.ts"],
