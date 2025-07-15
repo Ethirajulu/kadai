@@ -8,7 +8,7 @@ export class QdrantConnectionFactory {
     const port = config.port || 6333;
     const url = host.startsWith('http') ? host : `http://${host}:${port}`;
 
-    const clientConfig: any = {
+    const clientConfig: Record<string, unknown> = {
       url,
       timeout: config.timeout || 5000,
     };

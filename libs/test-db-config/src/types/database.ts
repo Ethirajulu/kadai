@@ -106,14 +106,27 @@ export interface ChatMessageTestData
 }
 
 export interface ProductTestData
-  extends Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'seller' | 'orderItems'> {
+  extends Omit<
+    Product,
+    'id' | 'createdAt' | 'updatedAt' | 'seller' | 'orderItems'
+  > {
   id?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 export interface OrderTestData
-  extends Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'updatedAt' | 'user' | 'seller' | 'items' | 'payments'> {
+  extends Omit<
+    Order,
+    | 'id'
+    | 'orderNumber'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'user'
+    | 'seller'
+    | 'items'
+    | 'payments'
+  > {
   id?: string;
   orderNumber?: string;
   createdAt?: Date;
@@ -121,7 +134,10 @@ export interface OrderTestData
 }
 
 export interface SellerProfileTestData
-  extends Omit<SellerProfile, 'id' | 'createdAt' | 'updatedAt' | 'user' | 'products'> {
+  extends Omit<
+    SellerProfile,
+    'id' | 'createdAt' | 'updatedAt' | 'user' | 'products'
+  > {
   id?: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -153,12 +169,4 @@ export interface CleanupOptions {
   preserveSchema?: boolean;
   resetSequences?: boolean;
   truncateOnly?: boolean;
-}
-
-export interface SeedOptions {
-  userCount?: number;
-  taskCount?: number;
-  messageCount?: number;
-  vectorCount?: number;
-  createRelationships?: boolean;
 }
