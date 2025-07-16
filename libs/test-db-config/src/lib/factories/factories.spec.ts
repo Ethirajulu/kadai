@@ -9,7 +9,15 @@ import {
   VectorDataFactory,
   RelationshipAwareFactory,
 } from './index';
-import { UserRole, OrderStatus, TaskStatus } from '../../types/database';
+import { 
+  UserRole, 
+  OrderStatus, 
+  TaskStatus,
+  UserTestData,
+  ProductTestData,
+  OrderTestData,
+  SellerProfileTestData
+} from '../../types/database';
 
 describe('Data Factories', () => {
   beforeEach(() => {
@@ -48,7 +56,7 @@ describe('Data Factories', () => {
       const users = factory.generateUsers(5);
       
       expect(users).toHaveLength(5);
-      users.forEach(user => {
+      users.forEach((user: UserTestData) => {
         expect(user.email).toMatch(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
       });
     });
@@ -104,7 +112,7 @@ describe('Data Factories', () => {
       const products = factory.generateProductsBySeller(sellerId, 3);
       
       expect(products).toHaveLength(3);
-      products.forEach(product => {
+      products.forEach((product: ProductTestData) => {
         expect(product.sellerId).toBe(sellerId);
       });
     });
@@ -119,7 +127,7 @@ describe('Data Factories', () => {
       const products = factory.generateBulkProducts(options);
       
       expect(products).toHaveLength(10);
-      products.forEach(product => {
+      products.forEach((product: ProductTestData) => {
         expect(product.price).toBeGreaterThanOrEqual(100);
         expect(product.price).toBeLessThanOrEqual(1000);
         expect(product.stockQuantity).toBeGreaterThan(0);
@@ -169,7 +177,7 @@ describe('Data Factories', () => {
       const orders = factory.generateOrdersForUser(userId, 5);
       
       expect(orders).toHaveLength(5);
-      orders.forEach(order => {
+      orders.forEach((order: OrderTestData) => {
         expect(order.userId).toBe(userId);
       });
     });
@@ -184,7 +192,7 @@ describe('Data Factories', () => {
       const orders = factory.generateBulkOrders(options);
       
       expect(orders).toHaveLength(15);
-      orders.forEach(order => {
+      orders.forEach((order: OrderTestData) => {
         expect(order.status).toBe(OrderStatus.DELIVERED);
         expect(order.totalAmount).toBeGreaterThanOrEqual(500);
         expect(order.totalAmount).toBeLessThanOrEqual(2000);
@@ -239,7 +247,7 @@ describe('Data Factories', () => {
       const sellers = factory.generateSellersWithGST(5);
       
       expect(sellers).toHaveLength(5);
-      sellers.forEach(seller => {
+      sellers.forEach((seller: SellerProfileTestData) => {
         expect(seller.gstNumber).toBeDefined();
         expect(seller.gstNumber).toMatch(/^\d{2}[A-Z0-9]{13}$/);
       });
@@ -249,7 +257,7 @@ describe('Data Factories', () => {
       const sellers = factory.generateRegionalSellers(3, 'Maharashtra');
       
       expect(sellers).toHaveLength(3);
-      sellers.forEach(seller => {
+      sellers.forEach((seller: SellerProfileTestData) => {
         expect(seller.gstNumber).toMatch(/^27[A-Z0-9]{13}$/); // Maharashtra code
         expect(seller.businessAddress).toContain('Maharashtra');
       });
@@ -364,7 +372,7 @@ describe('Data Factories', () => {
       
       // Check if vector is normalized (magnitude should be 1)
       const magnitude = Math.sqrt(
-        vector.vector.reduce((sum, val) => sum + val * val, 0)
+        vector.vector.reduce((sum: number, val: number) => sum + val * val, 0)
       );
       expect(magnitude).toBeCloseTo(1, 4);
     });
@@ -447,18 +455,18 @@ describe('Data Factories', () => {
       });
       
       // Check that seller profiles have corresponding users
-      const sellerUsers = dataset.users.filter(u => u.role === UserRole.SELLER);
+      const sellerUsers = dataset.users.filter((u: UserTestData) => u.role === UserRole.SELLER);
       expect(dataset.sellerProfiles).toHaveLength(sellerUsers.length);
       
       // Check that products have corresponding sellers
-      const sellerIds = dataset.sellerProfiles.map(s => s.id);
-      dataset.products.forEach(product => {
+      const sellerIds = dataset.sellerProfiles.map((s: SellerProfileTestData) => s.id);
+      dataset.products.forEach((product: ProductTestData) => {
         expect(sellerIds).toContain(product.sellerId);
       });
       
       // Check that orders have valid user and seller references
-      const userIds = dataset.users.map(u => u.id);
-      dataset.orders.forEach(order => {
+      const userIds = dataset.users.map((u: UserTestData) => u.id);
+      dataset.orders.forEach((order: OrderTestData) => {
         expect(userIds).toContain(order.userId);
         expect(sellerIds).toContain(order.sellerId);
       });

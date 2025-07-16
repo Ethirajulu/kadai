@@ -172,7 +172,7 @@ export class JestTestSetup {
 
     // Initialize enabled databases
     if (this.config.databases.postgresql) {
-      this.connections.postgresql = await this.databaseManager.createPostgreSQLConnection({
+      this.connections.postgresql = await this.databaseManager.getPostgreSQLConnection({
         host: process.env.TEST_POSTGRES_HOST || 'localhost',
         port: parseInt(process.env.TEST_POSTGRES_PORT || '5432'),
         database: process.env.TEST_POSTGRES_DB || 'test_db',
@@ -186,7 +186,7 @@ export class JestTestSetup {
     }
 
     if (this.config.databases.mongodb) {
-      this.connections.mongodb = await this.databaseManager.createMongoDBConnection({
+      this.connections.mongodb = await this.databaseManager.getMongoDBConnection({
         host: process.env.TEST_MONGODB_HOST || 'localhost',
         port: parseInt(process.env.TEST_MONGODB_PORT || '27017'),
         database: process.env.TEST_MONGODB_DB || 'test_db',
@@ -199,7 +199,7 @@ export class JestTestSetup {
     }
 
     if (this.config.databases.redis) {
-      this.connections.redis = await this.databaseManager.createRedisConnection({
+      this.connections.redis = await this.databaseManager.getRedisConnection({
         host: process.env.TEST_REDIS_HOST || 'localhost',
         port: parseInt(process.env.TEST_REDIS_PORT || '6379'),
         db: parseInt(process.env.TEST_REDIS_DB || '0'),
@@ -211,7 +211,7 @@ export class JestTestSetup {
     }
 
     if (this.config.databases.qdrant) {
-      this.connections.qdrant = await this.databaseManager.createQdrantConnection({
+      this.connections.qdrant = await this.databaseManager.getQdrantConnection({
         host: process.env.TEST_QDRANT_HOST || 'localhost',
         port: parseInt(process.env.TEST_QDRANT_PORT || '6333'),
         testCollectionPrefix: `jest_${Date.now()}_`,

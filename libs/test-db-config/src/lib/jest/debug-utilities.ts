@@ -2,6 +2,23 @@ import { DatabaseConnections } from '../../types/database';
 import { CleanupVerifier, VerificationReport } from '../verification/cleanup-verifier';
 import { VerificationReporter } from '../verification/verification-reporter';
 
+// Database query result interfaces
+interface PostgreSQLTableResult {
+  table_name: string;
+}
+
+interface PostgreSQLSequenceResult {
+  sequence_name: string;
+}
+
+interface MongoDBCollectionResult {
+  name: string;
+}
+
+interface QdrantCollectionResult {
+  name: string;
+}
+
 export interface DebugContext {
   testName: string;
   testFile: string;
@@ -67,13 +84,13 @@ export interface DebugReport {
 export class DatabaseDebugger {
   private connections: DatabaseConnections;
   private verifier: CleanupVerifier;
-  private reporter: VerificationReporter;
+  private _reporter: VerificationReporter;
   private debugHistory: DebugContext[] = [];
 
   constructor(connections: DatabaseConnections) {
     this.connections = connections;
     this.verifier = new CleanupVerifier(connections);
-    this.reporter = new VerificationReporter();
+    this._reporter = new VerificationReporter();
   }
 
   /**
@@ -266,8 +283,8 @@ export class DatabaseDebugger {
             `);
 
             snapshot.state.postgresql = {
-              tables: tablesResult.rows.map(r => r.table_name),
-              sequences: sequencesResult.rows.map(r => r.sequence_name),
+              tables: (tablesResult.rows as PostgreSQLTableResult[]).map(r => r.table_name),
+              sequences: (sequencesResult.rows as PostgreSQLSequenceResult[]).map(r => r.sequence_name),
               activeConnections: parseInt(connectionsResult.rows[0].count),
               databaseSize: sizeResult.rows[0].size,
             };
@@ -283,7 +300,7 @@ export class DatabaseDebugger {
           const currentOps = await mongoConn.database.admin().command({ currentOp: true });
 
           snapshot.state.mongodb = {
-            collections: mongoCollections.map(c => c.name),
+            collections: (mongoCollections as MongoDBCollectionResult[]).map(c => c.name),
             databaseSize: dbStats.dataSize,
             activeOperations: currentOps.inprog?.length || 0,
           };
@@ -313,7 +330,7 @@ export class DatabaseDebugger {
           }
 
           snapshot.state.qdrant = {
-            collections: qdrantCollections.map(c => c.name),
+            collections: (qdrantCollections as QdrantCollectionResult[]).map(c => c.name),
             totalPoints,
             memoryUsage: 'N/A', // Qdrant doesn't provide memory usage via API
           };
@@ -614,34 +631,34 @@ Generated: ${new Date().toISOString()}
  * Global debug utilities
  */
 export class DebugUtils {
-  private static debugger: DatabaseDebugger;
+  private static _debugger: DatabaseDebugger;
 
   static initialize(connections: DatabaseConnections): void {
-    DebugUtils.debugger = new DatabaseDebugger(connections);
+    DebugUtils._debugger = new DatabaseDebugger(connections);
   }
 
   static createContext(testName: string, testFile: string, databases?: string[]): DebugContext {
-    return DebugUtils.debugger.createContext(testName, testFile, databases);
+    return DebugUtils._debugger.createDebugContext(testName, testFile, databases);
   }
 
   static async diagnoseConnections(databases?: string[]): Promise<ConnectionDiagnostics[]> {
-    return DebugUtils.debugger.diagnoseConnections(databases);
+    return DebugUtils._debugger.diagnoseConnections(databases);
   }
 
   static async takeDatabaseSnapshots(databases?: string[]): Promise<DatabaseStateSnapshot[]> {
-    return DebugUtils.debugger.takeDatabaseSnapshots(databases);
+    return DebugUtils._debugger.takeDatabaseSnapshots(databases);
   }
 
   static async generateDebugReport(context: DebugContext): Promise<DebugReport> {
-    return DebugUtils.debugger.generateDebugReport(context);
+    return DebugUtils._debugger.generateDebugReport(context);
   }
 
   static async exportDebugReport(report: DebugReport, format?: 'json' | 'html' | 'text'): Promise<string> {
-    return DebugUtils.debugger.exportDebugReport(report, format);
+    return DebugUtils._debugger.exportDebugReport(report, format);
   }
 
   static getInstance(): DatabaseDebugger {
-    return DebugUtils.debugger;
+    return DebugUtils._debugger;
   }
 }
 
@@ -660,10 +677,10 @@ export function debugTest(testName?: string) {
       
       try {
         const result = await originalMethod.apply(this, args);
-        DebugUtils.debugger.completeDebugContext(context);
+        DebugUtils._debugger.completeDebugContext(context);
         return result;
       } catch (error) {
-        DebugUtils.debugger.completeDebugContext(context, error as Error);
+        DebugUtils._debugger.completeDebugContext(context, error as Error);
         const report = await DebugUtils.generateDebugReport(context);
         await DebugUtils.exportDebugReport(report, 'json');
         throw error;

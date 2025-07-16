@@ -243,7 +243,7 @@ export type CleanupStatus =
 
 // Error types
 export class CleanupError extends Error {
-  public cause?: Error;
+  public override cause?: Error;
 
   constructor(
     message: string,

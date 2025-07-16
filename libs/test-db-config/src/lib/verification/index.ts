@@ -1,16 +1,20 @@
-export {
-  CleanupVerifier,
+export type {
   VerificationReport,
   VerificationConfig,
   VerificationMetrics,
   CustomValidator,
 } from './cleanup-verifier';
 
-export {
-  VerificationReporter,
+export { CleanupVerifier } from './cleanup-verifier';
+
+export type {
   ReportFormat,
   ReportOptions,
   ConsoleReportOptions,
+} from './verification-reporter';
+
+export { 
+  VerificationReporter,
   generateVerificationReport,
 } from './verification-reporter';
 
