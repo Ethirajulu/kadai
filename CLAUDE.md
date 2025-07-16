@@ -318,6 +318,7 @@ npx nx sync:check  # For CI validation
 - NEVER proactively create documentation files (*.md) or README files unless explicitly requested
 - When implementing features, always check existing patterns in the codebase first
 - Use TypeScript strict mode and maintain type safety across all services
+- **ZERO TOLERANCE FOR TYPESCRIPT ERRORS**: All TypeScript compilation errors MUST be fixed immediately. Warnings are acceptable, but errors are not. Always run `npx nx build <service>` and `npx tsc --noEmit` to verify no TypeScript errors exist before considering a task complete.
 - Follow the established port assignments in the `.env.example` file
 - Ensure all new code includes appropriate error handling and logging
 - Maintain backward compatibility when modifying shared libraries

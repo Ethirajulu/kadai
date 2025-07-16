@@ -1,14 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { PasswordService, PasswordValidationResult, PasswordPolicy } from './password.service';
+import { PasswordService, PasswordValidationResult } from './password.service';
 
 describe('PasswordService', () => {
   let service: PasswordService;
-  let configService: ConfigService;
 
   const mockConfigService = {
-    get: jest.fn((key: string, defaultValue?: any) => {
-      const config = {
+    get: jest.fn((key: string, defaultValue?: unknown) => {
+      const config: Record<string, unknown> = {
         PASSWORD_SALT_ROUNDS: 10,
         PASSWORD_PEPPER: 'test-pepper',
         PASSWORD_MIN_LENGTH: 8,
@@ -36,7 +35,6 @@ describe('PasswordService', () => {
     }).compile();
 
     service = module.get<PasswordService>(PasswordService);
-    configService = module.get<ConfigService>(ConfigService);
     jest.clearAllMocks();
   });
 
@@ -380,8 +378,11 @@ describe('PasswordService', () => {
       try {
         await service.hashPassword('weak');
       } catch (error) {
-        expect(error.message).not.toContain('weak');
-        expect(error.message).toContain('Password validation failed');
+        expect(error instanceof Error).toBe(true);
+        if (error instanceof Error) {
+          expect(error.message).not.toContain('weak');
+          expect(error.message).toContain('Password validation failed');
+        }
       }
     });
   });
