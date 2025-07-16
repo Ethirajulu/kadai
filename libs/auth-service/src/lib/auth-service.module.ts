@@ -5,7 +5,8 @@ import { PassportModule } from '@nestjs/passport';
 import { authConfig, validateAuthConfig } from './utils/config';
 import { JwtService } from './services/jwt.service';
 import { JwtStrategy } from './services/jwt.strategy';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { JwtAuthGuard, RbacGuard } from './guards';
+import { RbacService } from './services/rbac.service';
 import { redisProvider } from './services/redis.factory';
 
 @Module({
@@ -35,6 +36,8 @@ import { redisProvider } from './services/redis.factory';
     JwtService,
     JwtStrategy,
     JwtAuthGuard,
+    RbacGuard,
+    RbacService,
   ],
   exports: [
     JwtModule,
@@ -42,6 +45,8 @@ import { redisProvider } from './services/redis.factory';
     JwtService,
     JwtStrategy,
     JwtAuthGuard,
+    RbacGuard,
+    RbacService,
   ],
 })
 export class AuthServiceModule {}

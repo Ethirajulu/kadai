@@ -13,3 +13,6 @@ export * from './validators';
 export * from './config';
 // Temporarily commenting out schemas export until decorator issues are resolved
 // export * from './mongodb/schemas';
+
+// Export PrismaClient for RBAC usage
+export { PrismaClient } from './postgresql/generated/prisma';

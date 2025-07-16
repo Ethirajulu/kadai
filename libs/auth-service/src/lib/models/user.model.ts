@@ -4,6 +4,21 @@ export enum UserRole {
   CUSTOMER = 'customer',
 }
 
+export interface RbacRole {
+  id: string;
+  name: string;
+  description: string;
+  permissions: RbacPermission[];
+}
+
+export interface RbacPermission {
+  id: string;
+  name: string;
+  resource: string;
+  action: string;
+  description: string;
+}
+
 export enum UserStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
@@ -18,7 +33,7 @@ export interface User {
   name: string;
   phone?: string;
   address?: string;
-  role: UserRole;
+  role: UserRole; // Legacy field for backward compatibility
   status: UserStatus;
   businessDetails?: BusinessDetails;
   emailVerified: boolean;
@@ -28,6 +43,7 @@ export interface User {
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
+  roles?: RbacRole[]; // New RBAC roles
 }
 
 export interface BusinessDetails {
@@ -76,11 +92,12 @@ export interface UserProfile {
   name: string;
   phone?: string;
   address?: string;
-  role: UserRole;
+  role: UserRole; // Legacy field for backward compatibility
   status: UserStatus;
   businessDetails?: BusinessDetails;
   emailVerified: boolean;
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
+  roles?: RbacRole[]; // New RBAC roles
 }

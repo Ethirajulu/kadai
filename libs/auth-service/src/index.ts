@@ -13,5 +13,5 @@ export * from './lib/utils';
 export * from './lib/guards';
 export * from './lib/middleware';
 
-// Re-export commonly used decorators (will be added in next subtasks)
-// export * from './lib/decorators';
+// Decorators
+export * from './lib/decorators';
