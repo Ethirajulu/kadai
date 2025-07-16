@@ -28,8 +28,7 @@
           "buildDepsName": "build-deps",
           "watchDepsName": "watch-deps"
         }
-      },
-      "exclude": ["libs/database-config/*"]
+      }
     },
     {
       "plugin": "@nx/next/plugin",
@@ -112,7 +111,8 @@
         "typecheck": {
           "targetName": "typecheck"
         }
-      }
+      },
+      "exclude": ["libs/database-config/*"]
     }
   ],
   "targetDefaults": {

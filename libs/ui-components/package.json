@@ -17,8 +17,9 @@
   "nx": {
     "name": "ui-components",
     "tags": [
-      "shared",
+      "lib",
       "ui",
+      "ux",
       "components"
     ]
   }

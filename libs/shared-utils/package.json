@@ -2,7 +2,6 @@
   "name": "@kadai/shared-utils",
   "version": "0.0.1",
   "private": true,
-  "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,8 +15,13 @@
     }
   },
   "nx": {
+    "tags": [
+      "lib",
+      "node",
+      "shared",
+      "utils"
+    ],
     "name": "shared-utils",
-    "sourceRoot": "libs/shared-utils/src",
     "targets": {
       "build": {
         "executor": "@nx/js:swc",
@@ -26,19 +30,15 @@
         ],
         "options": {
           "outputPath": "libs/shared-utils/dist",
-          "main": "libs/shared-utils/src/index.ts",
           "tsConfig": "libs/shared-utils/tsconfig.lib.json",
-          "skipTypeCheck": true,
+          "packageJson": "libs/shared-utils/package.json",
+          "main": "libs/shared-utils/src/index.ts",
           "stripLeadingPaths": true
         }
       }
-    },
-    "tags": [
-      "shared",
-      "utils"
-    ]
+    }
   },
   "dependencies": {
-    "@swc/helpers": "~0.5.11"
+    "tslib": "^2.3.0"
   }
 }

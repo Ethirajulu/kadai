@@ -1,4 +1,4 @@
- 
+/* eslint-disable */
 import { readFileSync } from 'fs';
 
 // Reading the SWC compilation config for the spec files
@@ -13,7 +13,6 @@ export default {
   displayName: 'database-config',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
-  setupFilesAfterEnv: ['<rootDir>/../../jest.setup.ts'],
   transform: {
     '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig],
   },

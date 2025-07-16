@@ -4,15 +4,6 @@
   "files": [],
   "references": [
     {
-      "path": "./libs/shared-types"
-    },
-    {
-      "path": "./libs/shared-utils"
-    },
-    {
-      "path": "./libs/ui-components"
-    },
-    {
       "path": "./apps/api-gateway-e2e"
     },
     {
@@ -67,13 +58,34 @@
       "path": "./apps/seller-dashboard"
     },
     {
+      "path": "./libs/auth-service"
+    },
+    {
       "path": "./libs/database-config"
+    },
+    {
+      "path": "./libs/shared-types"
+    },
+    {
+      "path": "./libs/shared-utils"
+    },
+    {
+      "path": "./libs/database-config"
+    },
+    {
+      "path": "./libs/shared-utils"
+    },
+    {
+      "path": "./libs/shared-types"
+    },
+    {
+      "path": "./libs/shared-utils"
     },
     {
       "path": "./libs/test-db-config"
     },
     {
-      "path": "./libs/auth-service"
+      "path": "./libs/ui-components"
     }
   ]
 }

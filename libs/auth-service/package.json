@@ -17,7 +17,7 @@
   "nx": {
     "name": "auth-service",
     "tags": [
-      "libs",
+      "lib",
       "auth",
       "security"
     ],
@@ -40,22 +40,6 @@
     }
   },
   "dependencies": {
-    "tslib": "^2.3.0",
-    "@nestjs/common": "*",
-    "@nestjs/config": "*",
-    "@nestjs/jwt": "*",
-    "@nestjs/passport": "*",
-    "class-validator": "*",
-    "class-transformer": "*",
-    "jsonwebtoken": "*",
-    "passport-jwt": "*",
-    "@nestjs/core": "^11.0.0",
-    "rxjs": "^7.8.0",
-    "express": "5.1.0",
-    "@nestjs/testing": "^11.0.0",
-    "bcrypt": "^6.0.0"
-  },
-  "devDependencies": {
-    "@types/bcrypt": "^5.0.2"
+    "tslib": "^2.3.0"
   }
 }

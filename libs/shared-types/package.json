@@ -15,8 +15,13 @@
     }
   },
   "nx": {
+    "tags": [
+      "lib",
+      "node",
+      "shared",
+      "types"
+    ],
     "name": "shared-types",
-    "sourceRoot": "libs/shared-types/src",
     "targets": {
       "build": {
         "executor": "@nx/js:swc",
@@ -25,20 +30,15 @@
         ],
         "options": {
           "outputPath": "libs/shared-types/dist",
-          "main": "libs/shared-types/src/index.ts",
           "tsConfig": "libs/shared-types/tsconfig.lib.json",
-          "skipTypeCheck": true,
+          "packageJson": "libs/shared-types/package.json",
+          "main": "libs/shared-types/src/index.ts",
           "stripLeadingPaths": true
         }
       }
-    },
-    "tags": [
-      "shared",
-      "types"
-    ]
+    }
   },
   "dependencies": {
-    "@swc/helpers": "~0.5.11",
-    "zod": "^4.0.2"
+    "tslib": "^2.3.0"
   }
 }
