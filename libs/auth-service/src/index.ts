@@ -9,7 +9,9 @@ export * from './lib/services';
 // Utilities and constants
 export * from './lib/utils';
 
-// Re-export commonly used decorators and guards (will be added in next subtasks)
+// Guards and middleware
+export * from './lib/guards';
+export * from './lib/middleware';
+
+// Re-export commonly used decorators (will be added in next subtasks)
 // export * from './lib/decorators';
-// export * from './lib/guards';
-// export * from './lib/middleware';

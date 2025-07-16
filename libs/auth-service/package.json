@@ -46,6 +46,12 @@
     "@nestjs/jwt": "*",
     "@nestjs/passport": "*",
     "class-validator": "*",
-    "class-transformer": "*"
+    "class-transformer": "*",
+    "jsonwebtoken": "*",
+    "passport-jwt": "*",
+    "@nestjs/core": "^11.0.0",
+    "rxjs": "^7.8.0",
+    "express": "5.1.0",
+    "@nestjs/testing": "^11.0.0"
   }
 }
