@@ -9,23 +9,28 @@ import {
   SellerProfileController,
   AdminUserController,
   AdminSellerProfileController,
+  AuthController,
+  AdminAuthController,
 } from './controllers';
 import { 
   UserService, 
   RbacService, 
   SellerProfileService,
+  AuthService,
 } from './services';
 import { 
   UserRepository, 
   RbacRepository, 
   SellerProfileRepository,
+  UserSessionRepository,
 } from './repositories';
-import { RbacGuard, ResourcePermissionGuard } from './guards';
+import { RbacGuard, ResourcePermissionGuard, JwtAuthGuard, OptionalJwtAuthGuard } from './guards';
+import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
     DatabaseConfigModule,
-    AuthServiceModule,
+    AuthServiceModule, // This already provides JWT services
   ],
   controllers: [
     AppController,
@@ -34,6 +39,8 @@ import { RbacGuard, ResourcePermissionGuard } from './guards';
     RbacController,
     SellerProfileController,
     AdminSellerProfileController,
+    AuthController,
+    AdminAuthController,
   ],
   providers: [
     AppService,
@@ -41,13 +48,19 @@ import { RbacGuard, ResourcePermissionGuard } from './guards';
     UserService,
     RbacService,
     SellerProfileService,
+    AuthService,
     // Repositories
     UserRepository,
     RbacRepository,
     SellerProfileRepository,
+    UserSessionRepository,
     // Guards
     RbacGuard,
     ResourcePermissionGuard,
+    JwtAuthGuard,
+    OptionalJwtAuthGuard,
+    // Strategies
+    JwtStrategy,
   ],
 })
 export class AppModule {}
