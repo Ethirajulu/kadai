@@ -373,9 +373,9 @@ importers:
       '@nestjs/testing':
         specifier: ^11.0.0
         version: 11.1.3(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.1.14)(rxjs@7.8.1))(@nestjs/core@11.1.3)(@nestjs/platform-express@11.1.3)
-      '@types/express':
-        specifier: ^5.0.0
-        version: 5.0.3
+      bcrypt:
+        specifier: ^6.0.0
+        version: 6.0.0
       class-transformer:
         specifier: '*'
         version: 0.5.1
@@ -397,6 +397,10 @@ importers:
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
+    devDependencies:
+      '@types/bcrypt':
+        specifier: ^5.0.2
+        version: 5.0.2
 
   libs/database-config:
     dependencies:
@@ -410,7 +414,7 @@ importers:
         specifier: '*'
         version: 11.0.3(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.1.14)(rxjs@7.8.1))(@nestjs/core@11.1.3)(mongoose@8.16.2)(rxjs@7.8.1)
       '@prisma/client':
-        specifier: '*'
+        specifier: ^6.11.1
         version: 6.11.1(prisma@6.11.1(typescript@5.8.3))(typescript@5.8.3)
       mongoose:
         specifier: '*'

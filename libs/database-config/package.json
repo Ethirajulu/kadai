@@ -26,7 +26,7 @@
     "@nestjs/common": "*",
     "@nestjs/config": "*",
     "@nestjs/mongoose": "*",
-    "@prisma/client": "*",
+    "@prisma/client": "^6.11.1",
     "mongoose": "*",
     "mongoose-autopopulate": "*",
     "reflect-metadata": "*"

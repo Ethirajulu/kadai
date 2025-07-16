@@ -13,19 +13,23 @@ datasource db {
 
 // User management
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  phone     String?  @unique
-  name      String
-  role      UserRole @default(CUSTOMER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  email           String   @unique
+  phone           String?  @unique
+  password        String
+  name            String
+  address         String?
+  businessDetails Json?    // For sellers: business info, tax details, etc.
+  isActive        Boolean  @default(true)
+  isDeleted       Boolean  @default(false) // Soft delete
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Relations
   sellerProfile SellerProfile?
   orders        Order[]
   sessions      UserSession[]
+  userRoles     UserRole[]
 
   @@map("users")
 }
@@ -50,7 +54,9 @@ model SellerProfile {
 model UserSession {
   id        String   @id @default(uuid())
   userId    String
-  sessionId String   @unique
+  token     String   @unique // JWT token for blacklisting
+  device    String?  // Device information
+  ipAddress String?  // IP address for security tracking
   isActive  Boolean  @default(true)
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -155,8 +161,64 @@ model Task {
   @@map("tasks")
 }
 
+// RBAC Models
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  resource    String   // e.g., "user", "product", "order"
+  action      String   // e.g., "read", "write", "delete"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  roleId String
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String @id @default(uuid())
+  roleId       String
+  permissionId String
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
 // Enums
-enum UserRole {
+enum LegacyUserRole {
   CUSTOMER
   SELLER
   ADMIN
