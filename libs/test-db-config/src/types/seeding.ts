@@ -6,11 +6,6 @@ import {
   TaskTestData,
   ChatMessageTestData,
   VectorTestData,
-  DatabaseConnections,
-  PostgreSQLConnection,
-  MongoDBConnection,
-  RedisConnection,
-  QdrantConnection,
 } from './database';
 
 // Base Seed Script Interfaces

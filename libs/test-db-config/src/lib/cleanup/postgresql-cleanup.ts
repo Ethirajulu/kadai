@@ -269,10 +269,10 @@ export class PostgreSQLCleanup implements PostgreSQLCleanupStrategy {
           AND table_type = 'BASE TABLE'
         `;
         const { rows } = await client.query(tablesQuery);
-        targetTables = rows.map(row => row.table_name);
+        targetTables = rows.map((row: any) => row.table_name);
       }
 
-      for (const tableName of targetTables) {
+      for (const tableName of targetTables || []) {
         try {
           // Count records before truncation
           const countResult = await client.query(`SELECT COUNT(*) as count FROM "${tableName}"`);

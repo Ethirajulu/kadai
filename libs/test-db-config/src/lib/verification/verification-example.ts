@@ -58,7 +58,7 @@ export class VerificationExample {
     const formats = ['console', 'json', 'markdown', 'html'] as const;
 
     for (const format of formats) {
-      const reportContent = await this.reporter.generateReport(report, {
+      await this.reporter.generateReport(report, {
         format,
         includeDetails: true,
         includeMetrics: true,
@@ -198,7 +198,7 @@ export class VerificationExample {
     const report = await this.verifier.verifyCleanup();
 
     // Generate JUnit XML report
-    const junitReport = await this.reporter.generateReport(report, {
+    await this.reporter.generateReport(report, {
       format: 'junit',
       includeDetails: true,
       outputFile: './verification-junit.xml',
@@ -251,7 +251,7 @@ export class VerificationExample {
 
       // 3. Generate comprehensive report
       console.log('Step 3: Generating comprehensive report');
-      const comprehensiveReport = await this.reporter.generateReport(report, {
+      await this.reporter.generateReport(report, {
         format: 'markdown',
         includeDetails: true,
         includeMetrics: true,

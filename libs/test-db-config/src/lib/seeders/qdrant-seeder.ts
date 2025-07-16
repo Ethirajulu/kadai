@@ -6,7 +6,7 @@ import {
   QdrantConnection,
   VectorTestData,
 } from '../../types';
-import { VectorDataFactory, RelationshipAwareFactory } from '../factories';
+import { VectorDataFactory } from '../factories';
 
 export class QdrantSeeder extends BaseSeeder implements QdrantSeedScript {
   public readonly id = 'qdrant-seeder';
@@ -18,12 +18,10 @@ export class QdrantSeeder extends BaseSeeder implements QdrantSeedScript {
   public readonly database = 'qdrant' as const;
 
   private vectorFactory: VectorDataFactory;
-  private relationshipFactory: RelationshipAwareFactory;
 
   constructor(private connection: QdrantConnection, options?: SeedOptions) {
     super(options);
     this.vectorFactory = new VectorDataFactory();
-    this.relationshipFactory = new RelationshipAwareFactory();
   }
 
   async execute(options?: SeedOptions): Promise<SeedResult> {

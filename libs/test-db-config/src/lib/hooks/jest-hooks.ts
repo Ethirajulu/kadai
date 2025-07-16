@@ -3,7 +3,6 @@ const jestGlobals = globalThis as any;
 import {
   CleanupManager,
   CleanupOptions,
-  TestCleanupContext,
   CleanupResult,
 } from '../../types/cleanup';
 import { DatabaseConnections } from '../../types/database';
@@ -26,7 +25,6 @@ interface JestHookOptions {
 export class JestCleanupHooks {
   private cleanupManager: CleanupManager;
   private connections: DatabaseConnections | null = null;
-  private context: TestCleanupContext | null = null;
   private options: JestHookOptions;
   private hookResults: Map<string, CleanupResult[]> = new Map();
 
@@ -155,17 +153,7 @@ export class JestCleanupHooks {
   }
 
   private async setupTestEnvironment(): Promise<void> {
-    this.context = {
-      testSuite: jestGlobals.expect?.getState?.()?.currentTestName || 'unknown',
-      startTime: new Date(),
-      databases: this.options.databases || [
-        'postgresql',
-        'mongodb',
-        'redis',
-        'qdrant',
-      ],
-      options: this.options.cleanupOptions || {},
-    };
+    // Setup test environment - implementation depends on test context creation
 
     // Initial cleanup to ensure clean state
     const results = await this.cleanupManager.executeCleanup(

@@ -3,7 +3,6 @@ import {
   CleanupOptions,
   CleanupResult,
   CleanupVerificationResult,
-  TestCleanupContext,
   CleanupConfiguration,
   CleanupError,
 } from '../../types/cleanup';

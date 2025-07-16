@@ -356,7 +356,7 @@ export class QdrantCleanup implements QdrantCleanupStrategy {
         try {
           // For Qdrant, we don't typically "reset" indexes as they're part of the collection schema
           // Instead, we can recreate the collection with the same configuration
-          const collectionInfo = await this.connection.client.getCollection(collection.name);
+          await this.connection.client.getCollection(collection.name);
           
           // This is a complex operation that would require backing up the collection config
           // and recreating it. For now, we'll just log a warning.

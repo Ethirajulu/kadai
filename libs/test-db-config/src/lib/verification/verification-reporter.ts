@@ -1,5 +1,5 @@
 import { VerificationReport } from './cleanup-verifier';
-import { CleanupVerificationResult, CleanupIssue } from '../../types/cleanup';
+import { CleanupVerificationResult } from '../../types/cleanup';
 
 export type ReportFormat = 'json' | 'html' | 'markdown' | 'console' | 'junit';
 

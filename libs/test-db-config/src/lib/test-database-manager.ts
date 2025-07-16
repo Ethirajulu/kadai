@@ -88,15 +88,15 @@ export class TestDatabaseManager {
     return this.connections.postgresql;
   }
 
-  getMongoDBConnection(): MongoDBConnection | undefined {
+  getMongoDBConnection(config?: MongoDBTestConfig): MongoDBConnection | undefined {
     return this.connections.mongodb;
   }
 
-  getRedisConnection(): RedisConnection | undefined {
+  getRedisConnection(config?: RedisTestConfig): RedisConnection | undefined {
     return this.connections.redis;
   }
 
-  getQdrantConnection(): QdrantConnection | undefined {
+  getQdrantConnection(config?: QdrantTestConfig): QdrantConnection | undefined {
     return this.connections.qdrant;
   }
 

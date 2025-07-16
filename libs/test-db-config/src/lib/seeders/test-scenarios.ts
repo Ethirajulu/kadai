@@ -1,6 +1,5 @@
-import { SeedOptions, DatabaseConnections, TestScenario } from '../../types';
+import { DatabaseConnections, SeedOptions, TestScenario } from '../../types';
 import { MultiDatabaseOrchestrator } from './multi-database-orchestrator';
-import { RelationshipAwareFactory } from '../factories';
 
 // Define ScenarioResult locally since it's not in types
 export interface ScenarioResult {
@@ -15,11 +14,11 @@ export interface ScenarioResult {
 
 export class TestScenarioRunner {
   private orchestrator: MultiDatabaseOrchestrator;
-  private relationshipFactory: RelationshipAwareFactory;
+  // private relationshipFactory: RelationshipAwareFactory;
 
   constructor(connections: DatabaseConnections) {
     this.orchestrator = new MultiDatabaseOrchestrator(connections);
-    this.relationshipFactory = new RelationshipAwareFactory();
+    // this.relationshipFactory = new RelationshipAwareFactory();
   }
 
   async runScenario(

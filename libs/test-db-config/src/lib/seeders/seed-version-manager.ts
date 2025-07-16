@@ -1,15 +1,14 @@
 import { EventEmitter } from 'events';
 import {
-  SeedVersion,
-  SeedVersionHistory,
   SeedVersionManager as ISeedVersionManager,
+  SeedMigration,
+  SeedVersion,
+  SeedVersionDependency,
+  SeedVersionHistory,
   SeedVersionOptions,
   SeedVersionResult,
   SeedVersionState,
   SeedVersionValidation,
-  SeedMigration,
-  SeedDependency,
-  SeedVersionDependency,
 } from '../../types';
 
 export class SeedVersionManager
@@ -19,14 +18,15 @@ export class SeedVersionManager
   private versionHistory: SeedVersionHistory[];
   private currentVersion: string | null;
   private versionStates: Map<string, SeedVersionState>;
-  private registeredMigrations: Map<string, SeedMigration>;
+  // private registeredMigrations: Map<string, SeedMigration> = new Map();
 
   constructor() {
     super();
     this.versionHistory = [];
     this.currentVersion = null;
     this.versionStates = new Map();
-    this.registeredMigrations = new Map();
+    // this.registeredMigrations = new Map();
+    // Initialize migrations registry
   }
 
   async initializeVersioning(

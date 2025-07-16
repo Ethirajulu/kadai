@@ -57,9 +57,47 @@ export class JestTestSetup {
   private setupCompleted = false;
   private cleanupHooks: JestCleanupHooks | null = null;
 
+  private createDatabaseConfig(): TestDatabaseConfig {
+    return {
+      postgresql: this.config.databases.postgresql ? {
+        host: process.env.TEST_POSTGRES_HOST || 'localhost',
+        port: parseInt(process.env.TEST_POSTGRES_PORT || '5432'),
+        database: process.env.TEST_POSTGRES_DB || 'test_db',
+        username: process.env.TEST_POSTGRES_USER || 'postgres',
+        password: process.env.TEST_POSTGRES_PASSWORD || 'password',
+        testDatabaseSuffix: `_jest_${Date.now()}`,
+        poolSize: 5,
+        connectionTimeoutMillis: this.config.performance.timeouts.connection,
+      } : undefined,
+      mongodb: this.config.databases.mongodb ? {
+        host: process.env.TEST_MONGODB_HOST || 'localhost',
+        port: parseInt(process.env.TEST_MONGODB_PORT || '27017'),
+        database: process.env.TEST_MONGODB_DB || 'test_db',
+        testDatabaseSuffix: `_jest_${Date.now()}`,
+        timeout: this.config.performance.timeouts.connection,
+        maxPoolSize: 5,
+        minPoolSize: 1,
+      } : undefined,
+      redis: this.config.databases.redis ? {
+        host: process.env.TEST_REDIS_HOST || 'localhost',
+        port: parseInt(process.env.TEST_REDIS_PORT || '6379'),
+        db: parseInt(process.env.TEST_REDIS_DB || '0'),
+        testKeyPrefix: `jest_${Date.now()}:`,
+        keyPrefix: `test:`,
+        lazyConnect: true,
+      } : undefined,
+      qdrant: this.config.databases.qdrant ? {
+        host: process.env.TEST_QDRANT_HOST || 'localhost',
+        port: parseInt(process.env.TEST_QDRANT_PORT || '6333'),
+        testCollectionPrefix: `jest_${Date.now()}_`,
+        timeout: this.config.performance.timeouts.connection,
+      } : undefined,
+    };
+  }
+
   private constructor(config: Partial<JestSetupConfig> = {}) {
     this.config = this.mergeWithDefaults(config);
-    this.databaseManager = new TestDatabaseManager();
+    this.databaseManager = new TestDatabaseManager(this.createDatabaseConfig());
     this.cleanupManager = new TestCleanupManager();
     this.verifier = new CleanupVerifier({});
   }
@@ -162,63 +200,12 @@ export class JestTestSetup {
   }
 
   private async initializeDatabaseConnections(): Promise<void> {
-    const testConfig: TestDatabaseConfig = {
-      isolation: {
-        useTransactions: this.config.isolation.useTransactions,
-        cleanupAfterEach: this.config.cleanup.afterEach,
-        resetSequences: true,
-      },
-    };
-
-    // Initialize enabled databases
-    if (this.config.databases.postgresql) {
-      this.connections.postgresql = await this.databaseManager.getPostgreSQLConnection({
-        host: process.env.TEST_POSTGRES_HOST || 'localhost',
-        port: parseInt(process.env.TEST_POSTGRES_PORT || '5432'),
-        database: process.env.TEST_POSTGRES_DB || 'test_db',
-        username: process.env.TEST_POSTGRES_USER || 'postgres',
-        password: process.env.TEST_POSTGRES_PASSWORD || 'password',
-        testDatabaseSuffix: `_jest_${Date.now()}`,
-        poolSize: 5,
-        connectionTimeoutMillis: this.config.performance.timeouts.connection,
-      });
-      this.log('info', 'PostgreSQL connection initialized');
-    }
-
-    if (this.config.databases.mongodb) {
-      this.connections.mongodb = await this.databaseManager.getMongoDBConnection({
-        host: process.env.TEST_MONGODB_HOST || 'localhost',
-        port: parseInt(process.env.TEST_MONGODB_PORT || '27017'),
-        database: process.env.TEST_MONGODB_DB || 'test_db',
-        testDatabaseSuffix: `_jest_${Date.now()}`,
-        timeout: this.config.performance.timeouts.connection,
-        maxPoolSize: 5,
-        minPoolSize: 1,
-      });
-      this.log('info', 'MongoDB connection initialized');
-    }
-
-    if (this.config.databases.redis) {
-      this.connections.redis = await this.databaseManager.getRedisConnection({
-        host: process.env.TEST_REDIS_HOST || 'localhost',
-        port: parseInt(process.env.TEST_REDIS_PORT || '6379'),
-        db: parseInt(process.env.TEST_REDIS_DB || '0'),
-        testKeyPrefix: `jest_${Date.now()}:`,
-        keyPrefix: `test:`,
-        lazyConnect: true,
-      });
-      this.log('info', 'Redis connection initialized');
-    }
-
-    if (this.config.databases.qdrant) {
-      this.connections.qdrant = await this.databaseManager.getQdrantConnection({
-        host: process.env.TEST_QDRANT_HOST || 'localhost',
-        port: parseInt(process.env.TEST_QDRANT_PORT || '6333'),
-        testCollectionPrefix: `jest_${Date.now()}_`,
-        timeout: this.config.performance.timeouts.connection,
-      });
-      this.log('info', 'Qdrant connection initialized');
-    }
+    // Initialize the database manager with the test config
+    await this.databaseManager.initialize();
+    
+    // Get the connections from the manager
+    this.connections = this.databaseManager.getAllConnections();
+    this.log('info', 'Database connections initialized');
   }
 
   private async setupCleanupManager(): Promise<void> {
@@ -389,7 +376,7 @@ export class JestTestSetup {
     }
 
     if (this.connections.redis?.client) {
-      closePromises.push(this.connections.redis.client.quit());
+      closePromises.push(this.connections.redis.client.quit().then(() => {}));
     }
 
     if (this.connections.qdrant?.client) {

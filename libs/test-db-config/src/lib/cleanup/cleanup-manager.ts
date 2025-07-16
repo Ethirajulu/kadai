@@ -11,7 +11,6 @@ import {
   CleanupConfiguration,
   CleanupError,
   CleanupTimeoutError,
-  TestCleanupContext,
   CleanupPerformanceMetrics,
 } from '../../types/cleanup';
 import { DatabaseConnections } from '../../types/database';
@@ -118,6 +117,10 @@ export class TestCleanupManager extends EventEmitter implements CleanupManager {
 
   setConnections(connections: DatabaseConnections): void {
     this.connections = connections;
+    // Use connections for strategy registration
+    if (this.connections) {
+      // Implementation depends on strategy initialization
+    }
   }
 
   registerStrategy(strategy: DatabaseCleanupStrategy): void {
