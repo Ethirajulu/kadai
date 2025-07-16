@@ -5,6 +5,201 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seeding...');
 
+  // Create RBAC roles first
+  const adminRole = await prisma.role.upsert({
+    where: { name: 'ADMIN' },
+    update: {},
+    create: {
+      name: 'ADMIN',
+      description: 'System administrator with full access',
+    },
+  });
+
+  const sellerRole = await prisma.role.upsert({
+    where: { name: 'SELLER' },
+    update: {},
+    create: {
+      name: 'SELLER',
+      description: 'Seller with product and order management access',
+    },
+  });
+
+  const customerRole = await prisma.role.upsert({
+    where: { name: 'CUSTOMER' },
+    update: {},
+    create: {
+      name: 'CUSTOMER',
+      description: 'Customer with order and profile access',
+    },
+  });
+
+  console.log('✅ Created/Updated RBAC roles');
+
+  // Create permissions
+  const permissions = await Promise.all([
+    prisma.permission.upsert({
+      where: { name: 'user:read' },
+      update: {},
+      create: {
+        name: 'user:read',
+        description: 'Read user information',
+        resource: 'user',
+        action: 'read',
+      },
+    }),
+    prisma.permission.upsert({
+      where: { name: 'user:write' },
+      update: {},
+      create: {
+        name: 'user:write',
+        description: 'Create and update user information',
+        resource: 'user',
+        action: 'write',
+      },
+    }),
+    prisma.permission.upsert({
+      where: { name: 'product:read' },
+      update: {},
+      create: {
+        name: 'product:read',
+        description: 'Read product information',
+        resource: 'product',
+        action: 'read',
+      },
+    }),
+    prisma.permission.upsert({
+      where: { name: 'product:write' },
+      update: {},
+      create: {
+        name: 'product:write',
+        description: 'Create and update product information',
+        resource: 'product',
+        action: 'write',
+      },
+    }),
+    prisma.permission.upsert({
+      where: { name: 'order:read' },
+      update: {},
+      create: {
+        name: 'order:read',
+        description: 'Read order information',
+        resource: 'order',
+        action: 'read',
+      },
+    }),
+    prisma.permission.upsert({
+      where: { name: 'order:write' },
+      update: {},
+      create: {
+        name: 'order:write',
+        description: 'Create and update order information',
+        resource: 'order',
+        action: 'write',
+      },
+    }),
+    prisma.permission.upsert({
+      where: { name: 'admin:all' },
+      update: {},
+      create: {
+        name: 'admin:all',
+        description: 'Full system administration access',
+        resource: 'admin',
+        action: 'all',
+      },
+    }),
+  ]);
+
+  console.log('✅ Created/Updated permissions');
+
+  // Assign permissions to roles
+  await Promise.all([
+    // Admin gets all permissions
+    ...permissions.map(permission => 
+      prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: adminRole.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: {
+          roleId: adminRole.id,
+          permissionId: permission.id,
+        },
+      })
+    ),
+    // Seller gets product and order permissions
+    prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: sellerRole.id,
+          permissionId: permissions.find(p => p.name === 'product:read')!.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: sellerRole.id,
+        permissionId: permissions.find(p => p.name === 'product:read')!.id,
+      },
+    }),
+    prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: sellerRole.id,
+          permissionId: permissions.find(p => p.name === 'product:write')!.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: sellerRole.id,
+        permissionId: permissions.find(p => p.name === 'product:write')!.id,
+      },
+    }),
+    prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: sellerRole.id,
+          permissionId: permissions.find(p => p.name === 'order:read')!.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: sellerRole.id,
+        permissionId: permissions.find(p => p.name === 'order:read')!.id,
+      },
+    }),
+    // Customer gets basic read permissions
+    prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: customerRole.id,
+          permissionId: permissions.find(p => p.name === 'product:read')!.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: customerRole.id,
+        permissionId: permissions.find(p => p.name === 'product:read')!.id,
+      },
+    }),
+    prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: customerRole.id,
+          permissionId: permissions.find(p => p.name === 'order:read')!.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: customerRole.id,
+        permissionId: permissions.find(p => p.name === 'order:read')!.id,
+      },
+    }),
+  ]);
+
+  console.log('✅ Assigned permissions to roles');
+
   // Create admin user (upsert to handle existing data)
   const admin = await prisma.user.upsert({
     where: { email: 'admin@kadai.ai' },
@@ -12,8 +207,23 @@ async function main() {
     create: {
       email: 'admin@kadai.ai',
       name: 'Admin User',
-      role: 'ADMIN',
+      password: '$2b$10$1234567890abcdef1234567890abcdef1234567890abcdef12',
       phone: '+919999999999',
+    },
+  });
+
+  // Assign admin role to admin user
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: admin.id,
+        roleId: adminRole.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: admin.id,
+      roleId: adminRole.id,
     },
   });
 
@@ -24,7 +234,7 @@ async function main() {
     data: {
       email: 'seller1@example.com',
       name: 'Raj Electronics',
-      role: 'SELLER',
+      password: '$2b$10$1234567890abcdef1234567890abcdef1234567890abcdef12',
       phone: '+919876543210',
       sellerProfile: {
         create: {
@@ -40,11 +250,19 @@ async function main() {
     },
   });
 
+  // Assign seller role to seller1
+  await prisma.userRole.create({
+    data: {
+      userId: seller1.id,
+      roleId: sellerRole.id,
+    },
+  });
+
   const seller2 = await prisma.user.create({
     data: {
       email: 'seller2@example.com',
       name: 'Priya Fashion',
-      role: 'SELLER',
+      password: '$2b$10$1234567890abcdef1234567890abcdef1234567890abcdef12',
       phone: '+919876543211',
       sellerProfile: {
         create: {
@@ -60,6 +278,14 @@ async function main() {
     },
   });
 
+  // Assign seller role to seller2
+  await prisma.userRole.create({
+    data: {
+      userId: seller2.id,
+      roleId: sellerRole.id,
+    },
+  });
+
   console.log('✅ Created sellers:', seller1.email, seller2.email);
 
   // Create sample customers
@@ -67,8 +293,16 @@ async function main() {
     data: {
       email: 'customer1@example.com',
       name: 'Amit Kumar',
-      role: 'CUSTOMER',
+      password: '$2b$10$1234567890abcdef1234567890abcdef1234567890abcdef12',
       phone: '+919876543212',
+    },
+  });
+
+  // Assign customer role to customer1
+  await prisma.userRole.create({
+    data: {
+      userId: customer1.id,
+      roleId: customerRole.id,
     },
   });
 
@@ -76,8 +310,16 @@ async function main() {
     data: {
       email: 'customer2@example.com',
       name: 'Sneha Patel',
-      role: 'CUSTOMER',
+      password: '$2b$10$1234567890abcdef1234567890abcdef1234567890abcdef12',
       phone: '+919876543213',
+    },
+  });
+
+  // Assign customer role to customer2
+  await prisma.userRole.create({
+    data: {
+      userId: customer2.id,
+      roleId: customerRole.id,
     },
   });
 
