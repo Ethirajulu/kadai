@@ -16,3 +16,4 @@ export * from './config';
 
 // Export PrismaClient for RBAC usage
 export { PrismaClient } from './postgresql/generated/prisma';
+export type { UserSession } from './postgresql/generated/prisma';

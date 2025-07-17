@@ -1,14 +1,12 @@
-import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@kadai/database-config';
+import { Injectable } from '@nestjs/common';
 import { UserSessionEntity } from '../entities/user-session.entity';
-import { Prisma } from '@prisma/client';
 
 export interface CreateUserSessionDto {
   userId: string;
   token: string;
   device?: string;
   ipAddress?: string;
-  userAgent?: string;
   expiresAt: Date;
 }
 
@@ -16,14 +14,15 @@ export interface CreateUserSessionDto {
 export class UserSessionRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createSessionDto: CreateUserSessionDto): Promise<UserSessionEntity> {
+  async create(
+    createSessionDto: CreateUserSessionDto
+  ): Promise<UserSessionEntity> {
     const session = await this.prisma.userSession.create({
       data: {
         userId: createSessionDto.userId,
         token: createSessionDto.token,
         device: createSessionDto.device,
         ipAddress: createSessionDto.ipAddress,
-        userAgent: createSessionDto.userAgent,
         expiresAt: createSessionDto.expiresAt,
         isActive: true,
       },
@@ -58,12 +57,12 @@ export class UserSessionRepository {
       orderBy: { createdAt: 'desc' },
     });
 
-    return sessions.map(session => new UserSessionEntity(session));
+    return sessions.map((session) => new UserSessionEntity(session));
   }
 
   async findActiveByUserId(userId: string): Promise<UserSessionEntity[]> {
     const sessions = await this.prisma.userSession.findMany({
-      where: { 
+      where: {
         userId,
         isActive: true,
         expiresAt: { gt: new Date() },
@@ -71,13 +70,17 @@ export class UserSessionRepository {
       orderBy: { createdAt: 'desc' },
     });
 
-    return sessions.map(session => new UserSessionEntity(session));
+    return sessions.map((session) => new UserSessionEntity(session));
   }
 
-  async updateTokens(sessionId: string, accessToken: string, refreshToken: string): Promise<void> {
+  async updateTokens(
+    sessionId: string,
+    accessToken: string,
+    refreshToken: string
+  ): Promise<void> {
     await this.prisma.userSession.update({
       where: { id: sessionId },
-      data: { 
+      data: {
         token: accessToken,
         // Note: We're storing the access token in the token field
         // In a real implementation, you might want separate fields
@@ -105,10 +108,7 @@ export class UserSessionRepository {
   async cleanupExpiredSessions(): Promise<number> {
     const result = await this.prisma.userSession.deleteMany({
       where: {
-        OR: [
-          { expiresAt: { lt: new Date() } },
-          { isActive: false },
-        ],
+        OR: [{ expiresAt: { lt: new Date() } }, { isActive: false }],
       },
     });
 
@@ -126,9 +126,15 @@ export class UserSessionRepository {
     });
 
     const now = new Date();
-    const active = sessions.filter(s => s.isActive && s.expiresAt > now).length;
-    const expired = sessions.filter(s => !s.isActive || s.expiresAt <= now).length;
-    const devices = [...new Set(sessions.map(s => s.device).filter(Boolean))];
+    const active = sessions.filter(
+      (s) => s.isActive && s.expiresAt > now
+    ).length;
+    const expired = sessions.filter(
+      (s) => !s.isActive || s.expiresAt <= now
+    ).length;
+    const devices = [
+      ...new Set(sessions.map((s) => s.device).filter((d) => d !== null)),
+    ];
 
     return {
       total: sessions.length,
@@ -138,28 +144,34 @@ export class UserSessionRepository {
     };
   }
 
-  async findSessionsByDevice(userId: string, device: string): Promise<UserSessionEntity[]> {
+  async findSessionsByDevice(
+    userId: string,
+    device: string
+  ): Promise<UserSessionEntity[]> {
     const sessions = await this.prisma.userSession.findMany({
-      where: { 
+      where: {
         userId,
         device,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    return sessions.map(session => new UserSessionEntity(session));
+    return sessions.map((session) => new UserSessionEntity(session));
   }
 
-  async findSessionsByIpAddress(userId: string, ipAddress: string): Promise<UserSessionEntity[]> {
+  async findSessionsByIpAddress(
+    userId: string,
+    ipAddress: string
+  ): Promise<UserSessionEntity[]> {
     const sessions = await this.prisma.userSession.findMany({
-      where: { 
+      where: {
         userId,
         ipAddress,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    return sessions.map(session => new UserSessionEntity(session));
+    return sessions.map((session) => new UserSessionEntity(session));
   }
 
   async updateLastActivity(sessionId: string): Promise<void> {
@@ -167,5 +179,24 @@ export class UserSessionRepository {
       where: { id: sessionId },
       data: { updatedAt: new Date() },
     });
+  }
+
+  async findAll(): Promise<UserSessionEntity[]> {
+    const sessions = await this.prisma.userSession.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sessions.map((session) => new UserSessionEntity(session));
+  }
+
+  async findExpiredSessions(): Promise<UserSessionEntity[]> {
+    const sessions = await this.prisma.userSession.findMany({
+      where: {
+        OR: [{ expiresAt: { lt: new Date() } }, { isActive: false }],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sessions.map((session) => new UserSessionEntity(session));
   }
 }

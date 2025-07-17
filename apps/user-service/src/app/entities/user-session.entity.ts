@@ -1,15 +1,21 @@
-import { UserSession as PrismaUserSession } from '@prisma/client';
+import { UserSession as PrismaUserSession } from '@kadai/database-config';
 
 export class UserSessionEntity implements PrismaUserSession {
-  id: string;
-  userId: string;
-  token: string;
-  device: string | null;
-  ipAddress: string | null;
-  isActive: boolean;
-  expiresAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
+  id!: string;
+  userId!: string;
+  token!: string;
+  device!: string | null;
+  ipAddress!: string | null;
+  userAgent!: string | null;
+  isActive!: boolean;
+  expiresAt!: Date;
+  createdAt!: Date;
+  updatedAt!: Date;
+
+  // Computed property for lastActivity (using updatedAt)
+  get lastActivity(): Date {
+    return this.updatedAt;
+  }
 
   constructor(partial: Partial<UserSessionEntity>) {
     Object.assign(this, partial);
