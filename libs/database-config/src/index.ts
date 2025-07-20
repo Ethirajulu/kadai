@@ -15,5 +15,5 @@ export * from './config';
 // export * from './mongodb/schemas';
 
 // Export PrismaClient for RBAC usage
-export { PrismaClient } from './postgresql/generated/prisma';
-export type { UserSession } from './postgresql/generated/prisma';
+export { PrismaClient } from './postgresql/generated/prisma/edge';
+export type { UserSession } from './postgresql/generated/prisma/edge';
