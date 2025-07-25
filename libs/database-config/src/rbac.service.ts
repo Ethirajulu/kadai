@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@kadai/database-config';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { PrismaClient } from './postgresql/generated/prisma';
 
 export interface RoleWithPermissions {
   id: string;
@@ -22,7 +22,7 @@ export interface RbacUserWithRoles {
 }
 
 @Injectable()
-export class RbacService {
+export class RbacService implements OnModuleDestroy {
   private prisma: PrismaClient;
 
   constructor() {

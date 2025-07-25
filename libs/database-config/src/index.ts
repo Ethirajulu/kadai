@@ -14,6 +14,8 @@ export * from './config';
 // Temporarily commenting out schemas export until decorator issues are resolved
 // export * from './mongodb/schemas';
 
-// Export PrismaClient for RBAC usage
-export { PrismaClient } from './postgresql/generated/prisma/edge';
-export type { UserSession } from './postgresql/generated/prisma/edge';
+// Export PrismaClient and types for RBAC usage
+export * from './prisma-client';
+
+// Export RBAC service 
+export * from './rbac.service';

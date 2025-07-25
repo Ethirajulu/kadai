@@ -20,6 +20,7 @@ import {
   SellerProfileService,
   AuthService,
 } from './services';
+import { RbacService as AuthRbacService } from '@kadai/database-config';
 import { SessionService } from './services/session.service';
 import { 
   UserRepository, 
@@ -64,6 +65,7 @@ import {
     // Services
     UserService,
     RbacService,
+    AuthRbacService,
     SellerProfileService,
     AuthService,
     SessionService,

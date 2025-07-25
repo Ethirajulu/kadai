@@ -4,9 +4,6 @@
   "include": [],
   "references": [
     {
-      "path": "../database-config"
-    },
-    {
       "path": "./tsconfig.lib.json"
     },
     {

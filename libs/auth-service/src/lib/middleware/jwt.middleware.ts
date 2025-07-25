@@ -3,8 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '../services/jwt.service';
 import { JwtPayload } from '../models/auth.model';
 
-// Import the type augmentation
-import '../types/express';
+// Note: Express type augmentation is handled by global declaration
 
 // Create a custom interface that extends Express Request
 interface JwtRequest extends Request {

@@ -1,6 +1,34 @@
 import { Injectable, NestMiddleware, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { RbacService, RbacUserWithRoles } from '../services/rbac.service';
+// Note: RbacService and types should be imported from @kadai/database-config where they are now located
+// This middleware works with any service that implements the RbacService interface
+
+export interface RbacUserWithRoles {
+  id: string;
+  email: string;
+  name: string;
+  roles: Array<{
+    id: string;
+    name: string;
+    description: string;
+    permissions: Array<{
+      id: string;
+      name: string;
+      resource: string;
+      action: string;
+      description: string;
+    }>;
+  }>;
+}
+
+export interface IRbacService {
+  getUserWithRoles(userId: string): Promise<RbacUserWithRoles | null>;
+  userHasAllRoles(userId: string, roles: string[]): Promise<boolean>;
+  userHasAnyRole(userId: string, roles: string[]): Promise<boolean>;
+  userHasAllPermissions(userId: string, permissions: string[]): Promise<boolean>;
+  userHasAnyPermission(userId: string, permissions: string[]): Promise<boolean>;
+  userHasResourcePermission(userId: string, resource: string, action: string): Promise<boolean>;
+}
 
 export interface RbacOptions {
   roles?: string[];
@@ -26,7 +54,7 @@ export class RbacMiddleware implements NestMiddleware {
   /**
    * Create a middleware function that checks for specific RBAC requirements
    */
-  static createRbacMiddleware(rbacService: RbacService, options: RbacOptions) {
+  static createRbacMiddleware(rbacService: IRbacService, options: RbacOptions) {
     return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       try {
         // Ensure user is authenticated
@@ -96,32 +124,32 @@ export class RbacMiddleware implements NestMiddleware {
  * Helper functions to create specific RBAC middleware
  */
 
-export const requireRoles = (rbacService: RbacService, ...roles: string[]) => 
+export const requireRoles = (rbacService: IRbacService, ...roles: string[]) => 
   RbacMiddleware.createRbacMiddleware(rbacService, { roles });
 
-export const requireAllRoles = (rbacService: RbacService, ...roles: string[]) => 
+export const requireAllRoles = (rbacService: IRbacService, ...roles: string[]) => 
   RbacMiddleware.createRbacMiddleware(rbacService, { roles, requireAll: true });
 
-export const requirePermissions = (rbacService: RbacService, ...permissions: string[]) => 
+export const requirePermissions = (rbacService: IRbacService, ...permissions: string[]) => 
   RbacMiddleware.createRbacMiddleware(rbacService, { permissions });
 
-export const requireAllPermissions = (rbacService: RbacService, ...permissions: string[]) => 
+export const requireAllPermissions = (rbacService: IRbacService, ...permissions: string[]) => 
   RbacMiddleware.createRbacMiddleware(rbacService, { permissions, requireAll: true });
 
-export const requireResourcePermission = (rbacService: RbacService, resource: string, action: string) => 
+export const requireResourcePermission = (rbacService: IRbacService, resource: string, action: string) => 
   RbacMiddleware.createRbacMiddleware(rbacService, { resource, action });
 
-export const requireAdmin = (rbacService: RbacService) => 
+export const requireAdmin = (rbacService: IRbacService) => 
   requireRoles(rbacService, 'ADMIN');
 
-export const requireSeller = (rbacService: RbacService) => 
+export const requireSeller = (rbacService: IRbacService) => 
   requireRoles(rbacService, 'SELLER');
 
-export const requireCustomer = (rbacService: RbacService) => 
+export const requireCustomer = (rbacService: IRbacService) => 
   requireRoles(rbacService, 'CUSTOMER');
 
-export const requireSellerOrAdmin = (rbacService: RbacService) => 
+export const requireSellerOrAdmin = (rbacService: IRbacService) => 
   requireRoles(rbacService, 'SELLER', 'ADMIN');
 
-export const requireCustomerOrSeller = (rbacService: RbacService) => 
+export const requireCustomerOrSeller = (rbacService: IRbacService) => 
   requireRoles(rbacService, 'CUSTOMER', 'SELLER');

@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { RbacRepository } from '../repositories/rbac.repository';
+import { RbacService as AuthRbacService } from '@kadai/database-config';
 import {
   RoleEntity,
   PermissionEntity,
@@ -32,7 +33,10 @@ import {
 
 @Injectable()
 export class RbacService {
-  constructor(private readonly rbacRepository: RbacRepository) {}
+  constructor(
+    private readonly rbacRepository: RbacRepository,
+    private readonly authRbacService: AuthRbacService
+  ) {}
 
   // Role Management
   async createRole(createRoleDto: CreateRoleDto): Promise<RoleResponseDto> {
