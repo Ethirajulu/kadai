@@ -1,4 +1,5 @@
 const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
+const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 const { join } = require('path');
 
 module.exports = {
@@ -6,11 +7,11 @@ module.exports = {
     path: join(__dirname, 'dist'),
   },
   resolve: {
-    alias: {
-      '@kadai/database-config': join(__dirname, '../../libs/database-config/dist'),
-      '@kadai/auth-service': join(__dirname, '../../dist/libs/auth-service/src'),
-      '@kadai/shared-types': join(__dirname, '../../dist/libs/shared-types'),
-    },
+    plugins: [
+      new TsconfigPathsPlugin({
+        configFile: join(__dirname, 'tsconfig.app.json'),
+      }),
+    ],
   },
   plugins: [
     new NxAppWebpackPlugin({
