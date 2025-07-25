@@ -39,6 +39,7 @@
     }
   },
   "dependencies": {
-    "tslib": "^2.3.0"
+    "zod": "^4.0.2",
+    "@swc/helpers": "~0.5.13"
   }
 }

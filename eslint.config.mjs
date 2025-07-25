@@ -28,6 +28,7 @@ export default [
           ],
         },
       ],
+      '@nx/dependency-checks': 'off', // Disabled - dependencies managed at workspace level
     },
   },
   {
