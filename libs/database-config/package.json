@@ -35,7 +35,10 @@
           "assets": [
             "libs/database-config/*.md"
           ]
-        }
+        },
+        "dependsOn": [
+          "^build"
+        ]
       }
     }
   },
