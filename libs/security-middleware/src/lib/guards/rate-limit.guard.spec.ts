@@ -9,7 +9,6 @@ import { SecurityRequest } from '../types/security.types';
 describe('RateLimitGuard', () => {
   let guard: RateLimitGuard;
   let rateLimitService: jest.Mocked<RateLimitService>;
-  let configService: jest.Mocked<ConfigService>;
   let reflector: jest.Mocked<Reflector>;
 
   const mockRequest = (overrides: Partial<SecurityRequest> = {}) =>
@@ -79,7 +78,6 @@ describe('RateLimitGuard', () => {
 
     guard = module.get<RateLimitGuard>(RateLimitGuard);
     rateLimitService = module.get(RateLimitService);
-    configService = module.get(ConfigService);
     reflector = module.get(Reflector);
   });
 
