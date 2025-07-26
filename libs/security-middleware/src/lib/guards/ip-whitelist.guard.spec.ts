@@ -6,7 +6,6 @@ import { SecurityRequest } from '../types/security.types';
 
 describe('IPWhitelistGuard', () => {
   let guard: IPWhitelistGuard;
-  let configService: ConfigService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -16,7 +15,7 @@ describe('IPWhitelistGuard', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string, defaultValue?: string) => {
-              const config = {
+              const config: Record<string, string> = {
                 IP_WHITELIST: '127.0.0.1,192.168.1.1',
                 IP_BLACKLIST: '10.0.0.1,10.0.0.2',
               };
@@ -28,7 +27,6 @@ describe('IPWhitelistGuard', () => {
     }).compile();
 
     guard = module.get<IPWhitelistGuard>(IPWhitelistGuard);
-    configService = module.get<ConfigService>(ConfigService);
   });
 
   it('should be defined', () => {
@@ -43,7 +41,9 @@ describe('IPWhitelistGuard', () => {
         switchToHttp: () => ({
           getRequest: () => ({
             headers: {},
-            connection: { remoteAddress: '127.0.0.1' },
+            connection: { remoteAddress: '127.0.0.1' } as any,
+            socket: { remoteAddress: '127.0.0.1' } as any,
+            ip: '127.0.0.1',
           } as SecurityRequest),
         }),
       } as ExecutionContext;
@@ -59,7 +59,9 @@ describe('IPWhitelistGuard', () => {
         switchToHttp: () => ({
           getRequest: () => ({
             headers: {},
-            connection: { remoteAddress: '10.0.0.1' },
+            connection: { remoteAddress: '10.0.0.1' } as any,
+            socket: { remoteAddress: '10.0.0.1' } as any,
+            ip: '10.0.0.1',
           } as SecurityRequest),
         }),
       } as ExecutionContext;
@@ -72,7 +74,9 @@ describe('IPWhitelistGuard', () => {
         switchToHttp: () => ({
           getRequest: () => ({
             headers: {},
-            connection: { remoteAddress: '192.168.1.100' },
+            connection: { remoteAddress: '192.168.1.100' } as any,
+            socket: { remoteAddress: '192.168.1.100' } as any,
+            ip: '192.168.1.100',
           } as SecurityRequest),
         }),
       } as ExecutionContext;
@@ -85,8 +89,10 @@ describe('IPWhitelistGuard', () => {
         switchToHttp: () => ({
           getRequest: () => ({
             headers: { 'x-forwarded-for': '127.0.0.1,10.0.0.1' },
-            connection: { remoteAddress: '10.0.0.1' },
-          } as SecurityRequest),
+            connection: { remoteAddress: '10.0.0.1' } as any,
+            socket: { remoteAddress: '10.0.0.1' } as any,
+            ip: '10.0.0.1',
+          } as unknown as SecurityRequest),
         }),
       } as ExecutionContext;
 
@@ -99,8 +105,10 @@ describe('IPWhitelistGuard', () => {
         switchToHttp: () => ({
           getRequest: () => ({
             headers: { 'x-real-ip': '127.0.0.1' },
-            connection: { remoteAddress: '10.0.0.1' },
-          } as SecurityRequest),
+            connection: { remoteAddress: '10.0.0.1' } as any,
+            socket: { remoteAddress: '10.0.0.1' } as any,
+            ip: '10.0.0.1',
+          } as unknown as SecurityRequest),
         }),
       } as ExecutionContext;
 
@@ -118,7 +126,7 @@ describe('IPWhitelistGuard', () => {
             provide: ConfigService,
             useValue: {
               get: jest.fn((key: string, defaultValue?: string) => {
-                const config = {
+                const config: Record<string, string> = {
                   IP_WHITELIST: '', // Empty whitelist
                   IP_BLACKLIST: '10.0.0.1',
                 };
@@ -137,7 +145,9 @@ describe('IPWhitelistGuard', () => {
         switchToHttp: () => ({
           getRequest: () => ({
             headers: {},
-            connection: { remoteAddress: '192.168.1.100' },
+            connection: { remoteAddress: '192.168.1.100' } as any,
+            socket: { remoteAddress: '192.168.1.100' } as any,
+            ip: '192.168.1.100',
           } as SecurityRequest),
         }),
       } as ExecutionContext;
@@ -151,7 +161,9 @@ describe('IPWhitelistGuard', () => {
         switchToHttp: () => ({
           getRequest: () => ({
             headers: {},
-            connection: { remoteAddress: '10.0.0.1' },
+            connection: { remoteAddress: '10.0.0.1' } as any,
+            socket: { remoteAddress: '10.0.0.1' } as any,
+            ip: '10.0.0.1',
           } as SecurityRequest),
         }),
       } as ExecutionContext;

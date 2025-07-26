@@ -5,7 +5,6 @@ import { SecurityRequest } from '../types/security.types';
 
 describe('SecurityService', () => {
   let service: SecurityService;
-  let configService: ConfigService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -15,7 +14,7 @@ describe('SecurityService', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string, defaultValue?: string) => {
-              const config = {
+              const config: Record<string, string> = {
                 CORS_ORIGINS: 'http://localhost:4200,http://localhost:3000',
                 IP_WHITELIST: '127.0.0.1,192.168.1.1',
                 IP_BLACKLIST: '10.0.0.1',
@@ -31,7 +30,6 @@ describe('SecurityService', () => {
     }).compile();
 
     service = module.get<SecurityService>(SecurityService);
-    configService = module.get<ConfigService>(ConfigService);
   });
 
   it('should be defined', () => {
@@ -70,9 +68,11 @@ describe('SecurityService', () => {
     beforeEach(() => {
       req = {
         headers: {},
-        connection: { remoteAddress: '127.0.0.1' },
+        connection: { remoteAddress: '127.0.0.1' } as any,
+        socket: { remoteAddress: '127.0.0.1' } as any,
         securityFlags: {},
-      };
+        ip: '127.0.0.1',
+      } as SecurityRequest;
       res = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
@@ -81,7 +81,7 @@ describe('SecurityService', () => {
     });
 
     it('should allow whitelisted IP', () => {
-      req.connection!.remoteAddress = '127.0.0.1';
+      (req.connection as any).remoteAddress = '127.0.0.1';
       
       const middleware = service.getIPFilterMiddleware();
       middleware(req as SecurityRequest, res, next);
@@ -91,7 +91,7 @@ describe('SecurityService', () => {
     });
 
     it('should block blacklisted IP', () => {
-      req.connection!.remoteAddress = '10.0.0.1';
+      (req.connection as any).remoteAddress = '10.0.0.1';
       
       const middleware = service.getIPFilterMiddleware();
       middleware(req as SecurityRequest, res, next);
@@ -102,7 +102,7 @@ describe('SecurityService', () => {
     });
 
     it('should block non-whitelisted IP when whitelist is configured', () => {
-      req.connection!.remoteAddress = '192.168.1.100';
+      (req.connection as any).remoteAddress = '192.168.1.100';
       
       const middleware = service.getIPFilterMiddleware();
       middleware(req as SecurityRequest, res, next);
@@ -121,9 +121,11 @@ describe('SecurityService', () => {
     beforeEach(() => {
       req = {
         headers: {},
-        connection: { remoteAddress: '8.8.8.8' }, // US IP
+        connection: { remoteAddress: '8.8.8.8' } as any,
+        socket: { remoteAddress: '8.8.8.8' } as any,
         securityFlags: {},
-      };
+        ip: '8.8.8.8',
+      } as SecurityRequest;
       res = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
@@ -141,7 +143,7 @@ describe('SecurityService', () => {
     });
 
     it('should set fallback country for unknown IPs', () => {
-      req.connection!.remoteAddress = '127.0.0.1'; // Localhost
+      (req.connection as any).remoteAddress = '127.0.0.1'; // Localhost
       
       const middleware = service.getGeoFilterMiddleware();
       middleware(req as SecurityRequest, res, next);
