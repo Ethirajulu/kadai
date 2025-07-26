@@ -24,7 +24,7 @@ export class SecurityService {
             defaultSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:"],
+            imgSrc: ["'self'", 'data:', 'https:'],
           },
         },
         hsts: {
@@ -34,7 +34,9 @@ export class SecurityService {
         },
       },
       cors: {
-        origin: this.configService.get('CORS_ORIGINS', 'http://localhost:4200').split(','),
+        origin: this.configService
+          .get('CORS_ORIGINS', 'http://localhost:4200')
+          .split(','),
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
         credentials: true,
@@ -78,13 +80,24 @@ export class SecurityService {
         },
       },
       ipWhitelist: {
-        whitelist: this.configService.get('IP_WHITELIST', '').split(',').filter(Boolean),
-        blacklist: this.configService.get('IP_BLACKLIST', '').split(',').filter(Boolean),
+        whitelist: this.configService
+          .get('IP_WHITELIST', '')
+          .split(',')
+          .filter(Boolean),
+        blacklist: this.configService
+          .get('IP_BLACKLIST', '')
+          .split(',')
+          .filter(Boolean),
         trustProxy: true,
       },
       geoFilter: {
-        allowedCountries: this.configService.get('ALLOWED_COUNTRIES', 'IN,US,GB').split(','),
-        blockedCountries: this.configService.get('BLOCKED_COUNTRIES', '').split(',').filter(Boolean),
+        allowedCountries: this.configService
+          .get('ALLOWED_COUNTRIES', 'IN,US,GB')
+          .split(','),
+        blockedCountries: this.configService
+          .get('BLOCKED_COUNTRIES', '')
+          .split(',')
+          .filter(Boolean),
         fallbackCountry: 'IN',
       },
       validation: {
@@ -113,7 +126,7 @@ export class SecurityService {
   getIPFilterMiddleware() {
     return (req: SecurityRequest, res: any, next: any) => {
       const clientIP = this.getClientIP(req);
-      
+
       // Check blacklist first
       if (this.config.ipWhitelist?.blacklist?.includes(clientIP)) {
         this.logger.warn(`Blocked request from blacklisted IP: ${clientIP}`);
@@ -124,7 +137,9 @@ export class SecurityService {
       // Check whitelist if configured
       if (this.config.ipWhitelist?.whitelist?.length) {
         if (!this.config.ipWhitelist.whitelist.includes(clientIP)) {
-          this.logger.warn(`Blocked request from non-whitelisted IP: ${clientIP}`);
+          this.logger.warn(
+            `Blocked request from non-whitelisted IP: ${clientIP}`
+          );
           req.securityFlags = { ...req.securityFlags, ipBlocked: true };
           return res.status(403).json({ error: 'Access denied' });
         }
@@ -139,7 +154,7 @@ export class SecurityService {
     return (req: SecurityRequest, res: any, next: any) => {
       const clientIP = this.getClientIP(req);
       const geoInfo = geoip.lookup(clientIP);
-      
+
       if (geoInfo) {
         req.ipInfo = {
           country: geoInfo.country,
@@ -151,18 +166,30 @@ export class SecurityService {
         };
 
         // Check blocked countries
-        if (this.config.geoFilter?.blockedCountries?.includes(geoInfo.country)) {
-          this.logger.warn(`Blocked request from blocked country: ${geoInfo.country} (IP: ${clientIP})`);
+        if (
+          this.config.geoFilter?.blockedCountries?.includes(geoInfo.country)
+        ) {
+          this.logger.warn(
+            `Blocked request from blocked country: ${geoInfo.country} (IP: ${clientIP})`
+          );
           req.securityFlags = { ...req.securityFlags, geoBlocked: true };
-          return res.status(403).json({ error: 'Access denied from your location' });
+          return res
+            .status(403)
+            .json({ error: 'Access denied from your location' });
         }
 
         // Check allowed countries
         if (this.config.geoFilter?.allowedCountries?.length) {
-          if (!this.config.geoFilter.allowedCountries.includes(geoInfo.country)) {
-            this.logger.warn(`Blocked request from non-allowed country: ${geoInfo.country} (IP: ${clientIP})`);
+          if (
+            !this.config.geoFilter.allowedCountries.includes(geoInfo.country)
+          ) {
+            this.logger.warn(
+              `Blocked request from non-allowed country: ${geoInfo.country} (IP: ${clientIP})`
+            );
             req.securityFlags = { ...req.securityFlags, geoBlocked: true };
-            return res.status(403).json({ error: 'Access denied from your location' });
+            return res
+              .status(403)
+              .json({ error: 'Access denied from your location' });
           }
         }
       } else {
@@ -210,8 +237,12 @@ export class SecurityService {
   validatePassword() {
     return body('password')
       .isLength({ min: 8 })
-      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-      .withMessage('Password must contain at least 8 characters with uppercase, lowercase, number and special character');
+      .matches(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/
+      )
+      .withMessage(
+        'Password must contain at least 8 characters with uppercase, lowercase, number and special character'
+      );
   }
 
   validateUUID() {
@@ -227,14 +258,21 @@ export class SecurityService {
 
   private getClientIP(req: SecurityRequest): string {
     if (this.config.ipWhitelist?.trustProxy) {
-      return (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
-             (req.headers['x-real-ip'] as string) ||
-             req.connection?.remoteAddress ||
-             req.socket?.remoteAddress ||
-             req.ip ||
-             '127.0.0.1';
+      return (
+        (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+        (req.headers['x-real-ip'] as string) ||
+        req.connection?.remoteAddress ||
+        req.socket?.remoteAddress ||
+        req.ip ||
+        '127.0.0.1'
+      );
     }
-    return req.connection?.remoteAddress || req.socket?.remoteAddress || req.ip || '127.0.0.1';
+    return (
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      req.ip ||
+      '127.0.0.1'
+    );
   }
 
   private sanitizeRequest(req: SecurityRequest): void {
@@ -269,20 +307,82 @@ export class SecurityService {
 
   private sanitizeString(str: string): string {
     if (!str || typeof str !== 'string') return str;
-    
+
+    // Check for dangerous patterns first
+    if (
+      str.includes('javascript:') ||
+      str.includes('onclick=') ||
+      str.includes('onload=') ||
+      str.includes('onerror=') ||
+      str.includes('onmouseover=') ||
+      str.includes('onfocus=') ||
+      str.includes('onblur=') ||
+      str.includes('onchange=') ||
+      str.includes('onsubmit=') ||
+      str.includes('onreset=') ||
+      str.includes('onselect=') ||
+      str.includes('onunload=') ||
+      str.includes('onabort=') ||
+      str.includes('onbeforeunload=') ||
+      str.includes('onerror=') ||
+      str.includes('onhashchange=') ||
+      str.includes('onmessage=') ||
+      str.includes('onoffline=') ||
+      str.includes('ononline=') ||
+      str.includes('onpagehide=') ||
+      str.includes('onpageshow=') ||
+      str.includes('onpopstate=') ||
+      str.includes('onresize=') ||
+      str.includes('onstorage=') ||
+      str.includes('oncontextmenu=') ||
+      str.includes('oninput=') ||
+      str.includes('oninvalid=') ||
+      str.includes('onsearch=') ||
+      str.includes('onkeydown=') ||
+      str.includes('onkeypress=') ||
+      str.includes('onkeyup=') ||
+      str.includes('onmousedown=') ||
+      str.includes('onmousemove=') ||
+      str.includes('onmouseout=') ||
+      str.includes('onmouseup=') ||
+      str.includes('onwheel=') ||
+      str.includes('ondrag=') ||
+      str.includes('ondragend=') ||
+      str.includes('ondragenter=') ||
+      str.includes('ondragleave=') ||
+      str.includes('ondragover=') ||
+      str.includes('ondragstart=') ||
+      str.includes('ondrop=') ||
+      str.includes('oncopy=') ||
+      str.includes('oncut=') ||
+      str.includes('onpaste=') ||
+      str.includes('onbeforecopy=') ||
+      str.includes('onbeforecut=') ||
+      str.includes('onbeforepaste=') ||
+      str.includes('onselectstart=') ||
+      str.includes('onselectionchange=')
+    ) {
+      return '';
+    }
+
     // Remove potentially dangerous characters and patterns
-    return str
+    const sanitized = str
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
       .replace(/javascript:/gi, '') // Remove javascript: protocol
       .replace(/on\w+\s*=/gi, '') // Remove event handlers
-      .replace(/[<>'"]/g, '') // Remove HTML characters
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/['"]/g, '') // Remove quotes
+      .replace(/&/g, ' ') // Replace & with space
+      .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
       .trim();
+
+    return sanitized;
   }
 
   logSecurityEvent(event: string, details: any, req?: SecurityRequest): void {
     const clientIP = req ? this.getClientIP(req) : 'unknown';
     const country = req?.ipInfo?.country || 'unknown';
-    
+
     this.logger.warn(`Security Event: ${event}`, {
       event,
       details,

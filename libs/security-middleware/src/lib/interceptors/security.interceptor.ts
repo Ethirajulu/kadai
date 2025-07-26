@@ -108,7 +108,7 @@ export class SecurityInterceptor implements NestInterceptor {
       method: request.method,
       path: request.path,
       ip: request.ip,
-      userAgent: request.headers['user-agent'],
+      userAgent: request.headers?.['user-agent'],
       country: request.ipInfo?.country,
       isWhitelisted: request.isWhitelisted,
       securityFlags: request.securityFlags,

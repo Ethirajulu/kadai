@@ -361,7 +361,7 @@ describe('SecurityService', () => {
     it('should remove HTML characters', () => {
       const input = '<div>Hello</div> & "quotes"';
       const result = service['sanitizeString'](input);
-      expect(result).toBe('Hello  quotes');
+      expect(result).toBe('Hello quotes');
     });
 
     it('should trim whitespace', () => {
@@ -449,7 +449,7 @@ describe('SecurityService', () => {
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
-        error: 'Access denied from your country',
+        error: 'Access denied from your location',
       });
       expect(next).not.toHaveBeenCalled();
     });

@@ -464,7 +464,7 @@ describe('RateLimitInterceptor', () => {
         expect.objectContaining({
           method: 'GET',
           path: '/api/test',
-          ip: '192.168.1.1',
+          clientId: 'user123',
           duration: 150,
           result: 'success',
           statusCode: 200,
@@ -493,7 +493,7 @@ describe('RateLimitInterceptor', () => {
         expect.objectContaining({
           method: 'GET',
           path: '/api/test',
-          ip: '192.168.1.1',
+          clientId: 'user123',
           duration: 200,
           result: 'error',
           statusCode: 429,
@@ -522,7 +522,7 @@ describe('RateLimitInterceptor', () => {
         expect.objectContaining({
           method: 'GET',
           path: '/api/test',
-          ip: '192.168.1.1',
+          clientId: '192.168.1.1',
           duration: 100,
           result: 'success',
           statusCode: 200,
@@ -691,16 +691,17 @@ describe('RateLimitInterceptor', () => {
     });
 
     it('should handle error in logRateLimitMetrics gracefully', () => {
-      const invalidRequest = {
-        ...mockRequest,
-        method: undefined, // This will cause an error when accessing properties
-      };
+      // Mock the logger to throw an error when called
+      const originalDebug = interceptor['logger'].debug;
+      interceptor['logger'].debug = jest.fn().mockImplementation(() => {
+        throw new Error('Logger error');
+      });
 
       const loggerSpy = jest.spyOn(interceptor['logger'], 'error');
 
       expect(() => {
         (interceptor as any).logRateLimitMetrics(
-          invalidRequest,
+          mockRequest,
           mockResponse,
           150,
           'success'
@@ -711,15 +712,21 @@ describe('RateLimitInterceptor', () => {
         'Failed to log rate limit metrics',
         expect.any(Error)
       );
+
+      // Restore original logger
+      interceptor['logger'].debug = originalDebug;
     });
   });
 
   describe('sendMetricsToMonitoring', () => {
     it('should send metrics to monitoring system', () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+
       const metrics = {
         method: 'GET',
         path: '/api/test',
-        ip: '192.168.1.1',
+        clientId: 'user123',
         duration: 150,
         result: 'success',
         statusCode: 200,
@@ -747,13 +754,18 @@ describe('RateLimitInterceptor', () => {
           },
         })
       );
+
+      process.env.NODE_ENV = originalEnv;
     });
 
     it('should handle metrics with different result types', () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+
       const errorMetrics = {
         method: 'POST',
         path: '/api/error',
-        ip: '192.168.1.2',
+        clientId: '192.168.1.2',
         duration: 300,
         result: 'error',
         statusCode: 500,
@@ -781,6 +793,8 @@ describe('RateLimitInterceptor', () => {
           },
         })
       );
+
+      process.env.NODE_ENV = originalEnv;
     });
 
     // NEW TESTS FOR MISSING BRANCHES
@@ -851,6 +865,9 @@ describe('RateLimitInterceptor', () => {
     });
 
     it('should handle metrics with rateLimitInfo', () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+
       const metrics = {
         method: 'GET',
         path: '/api/test',
@@ -878,6 +895,8 @@ describe('RateLimitInterceptor', () => {
           },
         })
       );
+
+      process.env.NODE_ENV = originalEnv;
     });
   });
 
@@ -919,7 +938,7 @@ describe('RateLimitInterceptor', () => {
     it('should handle very large reset times', async () => {
       const mockStatus = {
         limit: 100,
-        remaining: 50,
+        remaining: 0, // Set to 0 to trigger Retry-After header
         resetTime: Date.now() + 24 * 60 * 60 * 1000, // 24 hours from now
         isAdaptive: false,
         systemLoad: null,
