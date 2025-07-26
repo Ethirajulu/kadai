@@ -41,11 +41,41 @@ export class SecurityService {
         maxAge: 86400,
       },
       rateLimit: {
-        windowMs: 15 * 60 * 1000, // 15 minutes
-        max: 100, // limit each IP to 100 requests per windowMs
-        message: 'Too many requests from this IP, please try again later.',
-        standardHeaders: true,
-        legacyHeaders: false,
+        enabled: false, // Disabled by default in SecurityService
+        redis: {
+          host: 'localhost',
+          port: 6379,
+          keyPrefix: 'rate_limit:',
+        },
+        defaultLimits: {
+          anonymous: {
+            requests: 100,
+            windowMs: 15 * 60 * 1000,
+            message: 'Too many requests from this IP, please try again later.',
+          },
+          authenticated: {
+            requests: 200,
+            windowMs: 15 * 60 * 1000,
+            message: 'Too many requests, please try again later.',
+          },
+        },
+        slidingWindow: {
+          enabled: false,
+          precision: 60,
+        },
+        adaptive: {
+          enabled: false,
+          cpuThreshold: 80,
+          memoryThreshold: 85,
+          loadFactor: 0.5,
+        },
+        whitelist: {
+          ips: ['127.0.0.1', '::1'],
+          skipPaths: ['/health', '/metrics'],
+        },
+        headers: {
+          includeHeaders: true,
+        },
       },
       ipWhitelist: {
         whitelist: this.configService.get('IP_WHITELIST', '').split(',').filter(Boolean),

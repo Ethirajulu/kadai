@@ -27,15 +27,7 @@ export interface SecurityConfig {
     preflightContinue?: boolean;
     optionsSuccessStatus?: number;
   };
-  rateLimit?: {
-    windowMs?: number;
-    max?: number;
-    message?: string;
-    standardHeaders?: boolean;
-    legacyHeaders?: boolean;
-    skip?: (req: Request) => boolean;
-    keyGenerator?: (req: Request) => string;
-  };
+  rateLimit?: RateLimitConfig;
   ipWhitelist?: {
     whitelist?: string[];
     blacklist?: string[];
@@ -65,10 +57,22 @@ export interface IPInfo {
 export interface SecurityRequest extends Request {
   ipInfo?: IPInfo;
   isWhitelisted?: boolean;
+  user?: {
+    id: string;
+    role: string;
+    [key: string]: any;
+  };
   securityFlags?: {
     rateLimited?: boolean;
     geoBlocked?: boolean;
     ipBlocked?: boolean;
+    burstExceeded?: boolean;
+  };
+  rateLimitInfo?: {
+    remaining: number;
+    resetTime: number;
+    totalHits: number;
+    limit: number;
   };
 }
 
@@ -79,4 +83,100 @@ export interface SecurityHeaders {
   'Strict-Transport-Security': string;
   'Content-Security-Policy': string;
   'Referrer-Policy': string;
+  'X-RateLimit-Limit'?: string;
+  'X-RateLimit-Remaining'?: string;
+  'X-RateLimit-Reset'?: string;
+  'X-RateLimit-RetryAfter'?: string;
+}
+
+// Rate Limiting Types
+export interface RateLimitConfig {
+  enabled: boolean;
+  redis: {
+    host: string;
+    port: number;
+    password?: string;
+    db?: number;
+    keyPrefix?: string;
+    connectTimeout?: number;
+    lazyConnect?: boolean;
+    retryDelayOnFailover?: number;
+    maxRetriesPerRequest?: number;
+  };
+  defaultLimits: {
+    anonymous: RateLimitRule;
+    authenticated: RateLimitRule;
+  };
+  customLimits?: {
+    [key: string]: RateLimitRule;
+  };
+  slidingWindow: {
+    enabled: boolean;
+    precision: number; // in seconds
+  };
+  adaptive: {
+    enabled: boolean;
+    cpuThreshold: number; // percentage
+    memoryThreshold: number; // percentage
+    loadFactor: number; // reduction factor when overloaded
+  };
+  whitelist: {
+    ips: string[];
+    skipPaths: string[];
+    skipUserAgents?: string[];
+  };
+  headers: {
+    includeHeaders: boolean;
+    draft?: string; // RateLimit header draft version
+  };
+}
+
+export interface RateLimitRule {
+  requests: number; // number of requests allowed
+  windowMs: number; // time window in milliseconds
+  burst?: number; // burst limit for short periods
+  skipSuccessfulRequests?: boolean;
+  skipFailedRequests?: boolean;
+  keyGenerator?: (req: SecurityRequest) => string;
+  skip?: (req: SecurityRequest) => boolean;
+  message?: string | object;
+  standardHeaders?: boolean;
+  legacyHeaders?: boolean;
+}
+
+export interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetTime: number;
+  totalHits: number;
+  burstExceeded?: boolean;
+  adaptiveLimit?: number;
+  windowType?: 'fixed' | 'sliding';
+  error?: string;
+}
+
+export interface RateLimitStatus {
+  current: number;
+  limit: number;
+  remaining: number;
+  resetTime: number;
+  isAdaptive?: boolean;
+  systemLoad?: {
+    cpu: number;
+    memory: number;
+  };
+}
+
+export interface RateLimitOptions {
+  request: SecurityRequest;
+  isAuthenticated: boolean;
+  customLimit?: RateLimitRule;
+  windowType?: 'fixed' | 'sliding';
+  checkBurst?: boolean;
+  adaptive?: boolean;
+}
+
+export interface SystemLoad {
+  cpu: number; // CPU usage percentage
+  memory: number; // Memory usage percentage
 }

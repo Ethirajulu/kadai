@@ -426,6 +426,9 @@ importers:
       helmet:
         specifier: ^8.1.0
         version: 8.1.0
+      rate-limiter-flexible:
+        specifier: ^7.1.1
+        version: 7.1.1
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
@@ -7440,6 +7443,9 @@ packages:
   range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
+
+  rate-limiter-flexible@7.1.1:
+    resolution: {integrity: sha512-lsYRcqRSJrKBNt6pMzBJTiCJP5KnwsGWdObMZxd19JFUJRntM+yuHs4/2bs6NZweSLgpsDcykvzyQaumoslWQg==}
 
   raw-body@2.5.2:
     resolution: {integrity: sha512-8zGqypfENjCIqGhgXToC8aB2r7YrBX+AQAfIPs/Mlk+BtPTztOvTS01NRW/3Eh60J+a48lt8qsCzirQ6loCVfA==}
@@ -17210,6 +17216,8 @@ snapshots:
       safe-buffer: 5.2.1
 
   range-parser@1.2.1: {}
+
+  rate-limiter-flexible@7.1.1: {}
 
   raw-body@2.5.2:
     dependencies:

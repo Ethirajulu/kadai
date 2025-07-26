@@ -52,26 +52,6 @@ export default registerAs('security', (): SecurityConfig => ({
     preflightContinue: false,
     optionsSuccessStatus: 204,
   },
-  rateLimit: {
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
-    message: 'Too many requests from this IP, please try again later.',
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => {
-      // Skip rate limiting for health checks and internal requests
-      const skipPaths = ['/health', '/metrics', '/favicon.ico'];
-      return skipPaths.some(path => req.path.startsWith(path));
-    },
-    keyGenerator: (req: any) => {
-      // Use a combination of IP and user agent for more accurate rate limiting
-      const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || 
-                 req.headers['x-real-ip']?.toString() || 
-                 req.socket?.remoteAddress || 
-                 req.ip;
-      return `${ip}_${req.headers['user-agent']}`;
-    },
-  },
   ipWhitelist: {
     whitelist: (process.env.IP_WHITELIST || '').split(',').filter(Boolean),
     blacklist: (process.env.IP_BLACKLIST || '').split(',').filter(Boolean),
@@ -86,5 +66,95 @@ export default registerAs('security', (): SecurityConfig => ({
     sanitizeInput: process.env.SANITIZE_INPUT !== 'false',
     maxBodySize: process.env.MAX_BODY_SIZE || '10mb',
     maxParameterLength: parseInt(process.env.MAX_PARAMETER_LENGTH || '1000', 10),
+  },
+  rateLimit: {
+    enabled: process.env.RATE_LIMIT_ENABLED !== 'false',
+    redis: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      password: process.env.REDIS_PASSWORD,
+      db: parseInt(process.env.REDIS_RATE_LIMIT_DB || '1', 10),
+      keyPrefix: process.env.REDIS_RATE_LIMIT_PREFIX || 'rate_limit:',
+      connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT || '10000', 10),
+      lazyConnect: true,
+      retryDelayOnFailover: 100,
+      maxRetriesPerRequest: 3,
+    },
+    defaultLimits: {
+      anonymous: {
+        requests: parseInt(process.env.RATE_LIMIT_ANONYMOUS_REQUESTS || '100', 10),
+        windowMs: parseInt(process.env.RATE_LIMIT_ANONYMOUS_WINDOW_MS || '900000', 10), // 15 minutes
+        burst: parseInt(process.env.RATE_LIMIT_ANONYMOUS_BURST || '20', 10),
+        message: 'Too many requests from this IP. Please try again later.',
+        standardHeaders: true,
+        legacyHeaders: false,
+      },
+      authenticated: {
+        requests: parseInt(process.env.RATE_LIMIT_AUTHENTICATED_REQUESTS || '200', 10),
+        windowMs: parseInt(process.env.RATE_LIMIT_AUTHENTICATED_WINDOW_MS || '900000', 10), // 15 minutes
+        burst: parseInt(process.env.RATE_LIMIT_AUTHENTICATED_BURST || '50', 10),
+        message: 'Too many requests. Please try again later.',
+        standardHeaders: true,
+        legacyHeaders: false,
+      },
+    },
+    customLimits: {
+      // Login endpoint - stricter limits
+      'POST:/api/auth/login': {
+        requests: parseInt(process.env.RATE_LIMIT_LOGIN_REQUESTS || '5', 10),
+        windowMs: parseInt(process.env.RATE_LIMIT_LOGIN_WINDOW_MS || '900000', 10), // 15 minutes
+        burst: 2,
+        message: 'Too many login attempts. Please try again later.',
+        standardHeaders: true,
+      },
+      // Registration endpoint
+      'POST:/api/auth/register': {
+        requests: parseInt(process.env.RATE_LIMIT_REGISTER_REQUESTS || '3', 10),
+        windowMs: parseInt(process.env.RATE_LIMIT_REGISTER_WINDOW_MS || '3600000', 10), // 1 hour
+        burst: 1,
+        message: 'Too many registration attempts. Please try again later.',
+        standardHeaders: true,
+      },
+      // Password reset
+      'POST:/api/auth/reset-password': {
+        requests: parseInt(process.env.RATE_LIMIT_RESET_REQUESTS || '3', 10),
+        windowMs: parseInt(process.env.RATE_LIMIT_RESET_WINDOW_MS || '3600000', 10), // 1 hour
+        burst: 1,
+        message: 'Too many password reset requests. Please try again later.',
+        standardHeaders: true,
+      },
+      // API endpoints - higher limits for authenticated users
+      'GET:/api/*': {
+        requests: parseInt(process.env.RATE_LIMIT_API_GET_REQUESTS || '1000', 10),
+        windowMs: parseInt(process.env.RATE_LIMIT_API_GET_WINDOW_MS || '3600000', 10), // 1 hour
+        burst: parseInt(process.env.RATE_LIMIT_API_GET_BURST || '100', 10),
+        standardHeaders: true,
+      },
+      'POST:/api/*': {
+        requests: parseInt(process.env.RATE_LIMIT_API_POST_REQUESTS || '500', 10),
+        windowMs: parseInt(process.env.RATE_LIMIT_API_POST_WINDOW_MS || '3600000', 10), // 1 hour
+        burst: parseInt(process.env.RATE_LIMIT_API_POST_BURST || '50', 10),
+        standardHeaders: true,
+      },
+    },
+    slidingWindow: {
+      enabled: process.env.RATE_LIMIT_SLIDING_WINDOW_ENABLED === 'true',
+      precision: parseInt(process.env.RATE_LIMIT_SLIDING_WINDOW_PRECISION || '60', 10), // 1 minute precision
+    },
+    adaptive: {
+      enabled: process.env.RATE_LIMIT_ADAPTIVE_ENABLED === 'true',
+      cpuThreshold: parseInt(process.env.RATE_LIMIT_ADAPTIVE_CPU_THRESHOLD || '80', 10),
+      memoryThreshold: parseInt(process.env.RATE_LIMIT_ADAPTIVE_MEMORY_THRESHOLD || '85', 10),
+      loadFactor: parseFloat(process.env.RATE_LIMIT_ADAPTIVE_LOAD_FACTOR || '0.5'),
+    },
+    whitelist: {
+      ips: (process.env.RATE_LIMIT_WHITELIST_IPS || '127.0.0.1,::1').split(',').filter(Boolean),
+      skipPaths: (process.env.RATE_LIMIT_SKIP_PATHS || '/health,/metrics,/favicon.ico').split(',').filter(Boolean),
+      skipUserAgents: (process.env.RATE_LIMIT_SKIP_USER_AGENTS || '').split(',').filter(Boolean),
+    },
+    headers: {
+      includeHeaders: process.env.RATE_LIMIT_INCLUDE_HEADERS !== 'false',
+      draft: process.env.RATE_LIMIT_HEADER_DRAFT || 'draft-7',
+    },
   },
 }));
