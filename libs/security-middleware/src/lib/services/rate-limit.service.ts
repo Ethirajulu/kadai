@@ -10,6 +10,8 @@ import {
   SecurityRequest,
   SystemLoad,
   RateLimitRule,
+  ValidatedRedisResponse,
+  BurstCheckResponse,
 } from '../types/security.types';
 
 @Injectable()
@@ -92,6 +94,91 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
     this.config = this.configService.get<RateLimitConfig>('security.rateLimit') || this.getDefaultConfig();
   }
 
+  /**
+   * Validates Redis response data for sliding/fixed window operations
+   * @param result Raw Redis response
+   * @returns Validated response or throws error
+   */
+  private validateRedisResponse(result: unknown): ValidatedRedisResponse {
+    if (!Array.isArray(result) || result.length !== 3) {
+      throw new Error(`Invalid Redis response format: expected array of length 3, got ${typeof result}`);
+    }
+
+    const [current, remaining, resetTimeMs] = result;
+
+    if (typeof current !== 'number' || !Number.isInteger(current) || current < 0) {
+      throw new Error(`Invalid current count: expected non-negative integer, got ${current}`);
+    }
+
+    if (typeof remaining !== 'number' || !Number.isInteger(remaining)) {
+      throw new Error(`Invalid remaining count: expected integer, got ${remaining}`);
+    }
+
+    if (typeof resetTimeMs !== 'number' || !Number.isInteger(resetTimeMs) || resetTimeMs < 0) {
+      throw new Error(`Invalid reset time: expected non-negative integer, got ${resetTimeMs}`);
+    }
+
+    return { current, remaining, resetTimeMs };
+  }
+
+  /**
+   * Validates Redis burst check response
+   * @param result Raw Redis response
+   * @returns Validated burst response or throws error
+   */
+  private validateBurstResponse(result: unknown): BurstCheckResponse {
+    if (!Array.isArray(result) || result.length !== 2) {
+      throw new Error(`Invalid Redis burst response format: expected array of length 2, got ${typeof result}`);
+    }
+
+    const [exceeded, count] = result;
+
+    if (typeof exceeded !== 'boolean') {
+      throw new Error(`Invalid burst exceeded flag: expected boolean, got ${typeof exceeded}`);
+    }
+
+    if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
+      throw new Error(`Invalid burst count: expected non-negative integer, got ${count}`);
+    }
+
+    return { exceeded, count };
+  }
+
+  /**
+   * Safely gets system load with proper error handling
+   * @returns System load metrics or safe defaults on failure
+   */
+  private async getSystemLoad(): Promise<SystemLoad> {
+    try {
+      const loadAvg = os.loadavg()[0]; // 1-minute load average
+      const cpuCount = os.cpus().length;
+      
+      if (cpuCount === 0) {
+        throw new Error('No CPU cores detected');
+      }
+
+      const cpuPercent = Math.min(100, Math.max(0, (loadAvg / cpuCount) * 100));
+
+      const totalMem = os.totalmem();
+      const freeMem = os.freemem();
+      
+      if (totalMem === 0) {
+        throw new Error('Invalid total memory detected');
+      }
+
+      const memoryPercent = Math.min(100, Math.max(0, ((totalMem - freeMem) / totalMem) * 100));
+
+      return {
+        cpu: Number.isFinite(cpuPercent) ? cpuPercent : 0,
+        memory: Number.isFinite(memoryPercent) ? memoryPercent : 0,
+      };
+    } catch (error) {
+      this.logger.warn('Failed to get system load, using safe defaults', error);
+      // Return safe defaults instead of masking failures with zeros
+      return { cpu: 50, memory: 50 }; // Conservative estimates to trigger adaptive limiting
+    }
+  }
+
   async onModuleInit() {
     if (this.config.enabled) {
       await this.initializeRedis();
@@ -103,8 +190,13 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy() {
     if (this.redis) {
-      await this.redis.disconnect();
-      this.logger.log('Redis connection closed');
+      try {
+        await this.redis.disconnect();
+        this.logger.log('Redis connection closed');
+      } catch (error) {
+        this.logger.error('Error disconnecting Redis', error);
+        // Don't throw error during shutdown
+      }
     }
   }
 
@@ -191,45 +283,59 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
 
   private async checkSlidingWindow(key: string, rule: RateLimitRule): Promise<RateLimitResult> {
     const now = Date.now();
-    const result = await this.redis.eval(
-      this.slidingWindowScript,
-      1,
-      key,
-      rule.windowMs.toString(),
-      rule.requests.toString(),
-      now.toString(),
-      this.config.slidingWindow.precision.toString()
-    ) as [number, number, number];
-
-    const [current, remaining, resetTimeMs] = result;
     
-    return {
-      allowed: remaining > 0,
-      remaining: Math.max(0, remaining),
-      resetTime: now + resetTimeMs,
-      totalHits: current,
-    };
+    try {
+      const rawResult = await this.redis.eval(
+        this.slidingWindowScript,
+        1,
+        key,
+        rule.windowMs.toString(),
+        rule.requests.toString(),
+        now.toString(),
+        this.config.slidingWindow.precision.toString()
+      );
+
+      const { current, remaining, resetTimeMs } = this.validateRedisResponse(rawResult);
+      
+      return {
+        allowed: remaining > 0,
+        remaining: Math.max(0, remaining),
+        resetTime: now + resetTimeMs,
+        totalHits: current,
+      };
+    } catch (error) {
+      this.logger.error(`Sliding window check failed for key ${key}`, error);
+      // Preserve original error message for backward compatibility in tests
+      throw error instanceof Error ? error : new Error('Redis sliding window operation failed');
+    }
   }
 
   private async checkFixedWindow(key: string, rule: RateLimitRule): Promise<RateLimitResult> {
     const now = Date.now();
-    const result = await this.redis.eval(
-      this.fixedWindowScript,
-      1,
-      key,
-      rule.windowMs.toString(),
-      rule.requests.toString(),
-      now.toString()
-    ) as [number, number, number];
-
-    const [current, remaining, resetTimeMs] = result;
     
-    return {
-      allowed: remaining > 0,
-      remaining: Math.max(0, remaining),
-      resetTime: now + resetTimeMs,
-      totalHits: current,
-    };
+    try {
+      const rawResult = await this.redis.eval(
+        this.fixedWindowScript,
+        1,
+        key,
+        rule.windowMs.toString(),
+        rule.requests.toString(),
+        now.toString()
+      );
+
+      const { current, remaining, resetTimeMs } = this.validateRedisResponse(rawResult);
+      
+      return {
+        allowed: remaining > 0,
+        remaining: Math.max(0, remaining),
+        resetTime: now + resetTimeMs,
+        totalHits: current,
+      };
+    } catch (error) {
+      this.logger.error(`Fixed window check failed for key ${key}`, error);
+      // Preserve original error message for backward compatibility in tests
+      throw error instanceof Error ? error : new Error('Redis fixed window operation failed');
+    }
   }
 
   private async checkBurstLimit(key: string, rule: RateLimitRule): Promise<{ exceeded: boolean; count: number }> {
@@ -238,17 +344,24 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
     }
 
     const now = Date.now();
-    const result = await this.redis.eval(
-      this.burstCheckScript,
-      1,
-      key,
-      '60000', // 60 second burst window
-      rule.burst.toString(),
-      now.toString()
-    ) as [boolean, number];
+    
+    try {
+      const rawResult = await this.redis.eval(
+        this.burstCheckScript,
+        1,
+        key,
+        '60000', // 60 second burst window
+        rule.burst.toString(),
+        now.toString()
+      );
 
-    const [exceeded, count] = result;
-    return { exceeded, count };
+      const { exceeded, count } = this.validateBurstResponse(rawResult);
+      return { exceeded, count };
+    } catch (error) {
+      this.logger.error(`Burst limit check failed for key ${key}`, error);
+      // Preserve original error message for backward compatibility in tests
+      throw error instanceof Error ? error : new Error('Redis burst check operation failed');
+    }
   }
 
   private async applyAdaptiveLimiting(rule: RateLimitRule): Promise<RateLimitRule> {
@@ -268,25 +381,6 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
     return rule;
   }
 
-  private async getSystemLoad(): Promise<SystemLoad> {
-    try {
-      const loadAvg = os.loadavg()[0]; // 1-minute load average
-      const cpuCount = os.cpus().length;
-      const cpuPercent = Math.min(100, (loadAvg / cpuCount) * 100);
-
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      const memoryPercent = ((totalMem - freeMem) / totalMem) * 100;
-
-      return {
-        cpu: cpuPercent,
-        memory: memoryPercent,
-      };
-    } catch (error) {
-      this.logger.warn('Failed to get system load', error);
-      return { cpu: 0, memory: 0 };
-    }
-  }
 
   createRateLimitKey(options: RateLimitOptions): string {
     const { request, isAuthenticated } = options;

@@ -155,6 +155,20 @@ export interface RateLimitResult {
   error?: string;
 }
 
+// Detailed interface for Redis response validation  
+export interface ValidatedRedisResponse {
+  current: number;
+  remaining: number;
+  resetTimeMs: number;
+}
+
+// Interface for burst check responses
+export interface BurstCheckResponse {
+  exceeded: boolean;
+  count: number;
+}
+
+
 export interface RateLimitStatus {
   current: number;
   limit: number;

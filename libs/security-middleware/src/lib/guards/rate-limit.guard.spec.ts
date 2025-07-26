@@ -51,7 +51,11 @@ describe('RateLimitGuard', () => {
     };
 
     const mockConfigService = {
-      get: jest.fn(),
+      get: jest.fn().mockImplementation((key: string, defaultValue?: any) => {
+        if (key === 'security.rateLimit.fallback.authenticated') return 100;
+        if (key === 'security.rateLimit.fallback.anonymous') return 50;
+        return defaultValue;
+      }),
     };
 
     const mockReflector = {
@@ -172,7 +176,9 @@ describe('RateLimitGuard', () => {
 
       await expect(guard.canActivate(context)).rejects.toThrow(
         expect.objectContaining({
-          message: expect.stringContaining('burst'),
+          response: expect.objectContaining({
+            message: expect.stringContaining('burst'),
+          }),
         })
       );
     });

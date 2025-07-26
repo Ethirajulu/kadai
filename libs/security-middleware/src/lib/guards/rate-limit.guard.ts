@@ -8,9 +8,10 @@ import {
   HttpStatus 
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import { RateLimitService } from '../services/rate-limit.service';
-import { SecurityRequest, RateLimitRule } from '../types/security.types';
+import { SecurityRequest, RateLimitRule, RateLimitResult } from '../types/security.types';
 import { RATE_LIMIT_KEY } from '../decorators/security.decorators';
 
 export interface RateLimitError extends HttpException {
@@ -20,14 +21,31 @@ export interface RateLimitError extends HttpException {
   burstExceeded?: boolean;
 }
 
+interface SecurityRateLimitConfig {
+  fallbackLimits: {
+    authenticated: number;
+    anonymous: number;
+  };
+}
+
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   private readonly logger = new Logger(RateLimitGuard.name);
+  private readonly config: SecurityRateLimitConfig;
 
   constructor(
     private rateLimitService: RateLimitService,
-    private reflector: Reflector
-  ) {}
+    private reflector: Reflector,
+    private configService: ConfigService
+  ) {
+    // Load configuration with secure defaults
+    this.config = {
+      fallbackLimits: {
+        authenticated: this.configService.get<number>('security.rateLimit.fallback.authenticated', 100),
+        anonymous: this.configService.get<number>('security.rateLimit.fallback.anonymous', 50),
+      }
+    };
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<SecurityRequest>();
@@ -141,7 +159,7 @@ export class RateLimitGuard implements CanActivate {
 
   private addRateLimitHeaders(
     response: Response, 
-    rateLimitResult: any, 
+    rateLimitResult: RateLimitResult, 
     limit: number
   ): void {
     const resetTime = Math.ceil(rateLimitResult.resetTime / 1000);
@@ -174,7 +192,7 @@ export class RateLimitGuard implements CanActivate {
     }
   }
 
-  private createErrorMessage(rateLimitResult: any): string {
+  private createErrorMessage(rateLimitResult: RateLimitResult): string {
     const retryAfter = Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000);
     
     if (rateLimitResult.burstExceeded) {
@@ -189,7 +207,7 @@ export class RateLimitGuard implements CanActivate {
   }
 
   private getRateLimitFromResult(
-    rateLimitResult: any, 
+    rateLimitResult: RateLimitResult, 
     customLimit: RateLimitRule | undefined, 
     isAuthenticated: boolean
   ): number {
@@ -201,7 +219,9 @@ export class RateLimitGuard implements CanActivate {
       return customLimit.requests;
     }
 
-    // This is a fallback - in a real implementation, we'd need to get this from config
-    return isAuthenticated ? 200 : 100;
+    // Use secure configuration-based fallback limits
+    return isAuthenticated 
+      ? this.config.fallbackLimits.authenticated 
+      : this.config.fallbackLimits.anonymous;
   }
 }

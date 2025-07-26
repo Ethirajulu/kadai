@@ -1379,7 +1379,7 @@ describe('RateLimitService', () => {
       });
 
       expect(result.allowed).toBe(true);
-      expect(result.error).toBe('Unknown error');
+      expect(result.error).toBe('Redis sliding window operation failed');
     });
 
     it('should handle Redis returning unexpected data types', async () => {
@@ -1390,13 +1390,10 @@ describe('RateLimitService', () => {
         isAuthenticated: false,
       });
 
-      // When Redis returns a string instead of array, destructuring causes undefined behavior
-      // The service treats the string characters as array elements, leading to invalid results
+      // With proper validation, invalid Redis responses should cause fail-open behavior
       expect(result).toBeDefined();
-      expect(result.allowed).toBe(false); // 'i' > 0 is false  
-      expect(result.remaining).toBeNaN(); // Math.max(0, undefined) returns NaN
-      expect(result.totalHits).toBe('i'); // First character of 'invalid-response'
-      expect(result.windowType).toBe('sliding');
+      expect(result.allowed).toBe(true); // Fail-open: allow request when Redis data is invalid
+      expect(result.error).toContain('Invalid Redis response format'); // Error should be logged
     });
 
     it('should handle Redis returning null/undefined', async () => {
@@ -1558,8 +1555,8 @@ describe('RateLimitService', () => {
       const disconnectError = new Error('Disconnect failed');
       mockRedis.disconnect.mockRejectedValue(disconnectError as never);
 
-      // The service doesn't handle disconnect errors, so it will throw
-      await expect(service.onModuleDestroy()).rejects.toThrow('Disconnect failed');
+      // The service should handle disconnect errors gracefully
+      await expect(service.onModuleDestroy()).resolves.not.toThrow();
 
       // Should still attempt to disconnect
       expect(mockRedis.disconnect).toHaveBeenCalled();
