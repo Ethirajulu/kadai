@@ -59,9 +59,12 @@ export class ValidationService {
         'VALIDATION_ENABLE_SQL_INJECTION_PROTECTION',
         true
       ),
-      allowedFileTypes: this.configService
-        .get('VALIDATION_ALLOWED_FILE_TYPES', 'jpg,jpeg,png,gif,pdf,doc,docx')
-        .split(','),
+      allowedFileTypes: (
+        this.configService.get(
+          'VALIDATION_ALLOWED_FILE_TYPES',
+          'jpg,jpeg,png,gif,pdf,doc,docx'
+        ) || 'jpg,jpeg,png,gif,pdf,doc,docx'
+      ).split(','),
       maxFileSize: this.configService.get(
         'VALIDATION_MAX_FILE_SIZE',
         5 * 1024 * 1024
@@ -369,11 +372,11 @@ export class ValidationService {
 
   private getClientIP(req: SecurityRequest): string {
     return (
-      (req.headers?.['x-forwarded-for'] as string)?.split(',')[0] ||
-      (req.headers?.['x-real-ip'] as string) ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      req.ip ||
+      (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      (req.headers?.['x-real-ip'] as string)?.trim() ||
+      req.connection?.remoteAddress?.trim() ||
+      req.socket?.remoteAddress?.trim() ||
+      req.ip?.trim() ||
       '127.0.0.1'
     );
   }

@@ -35,40 +35,59 @@ export class SecurityInterceptor implements NestInterceptor {
       catchError((error) => {
         const duration = Date.now() - startTime;
         this.logSecurityResponse(request, response, duration, false, error);
-        
+
         // Log security events for specific error types
         if (error.status === 401) {
-          this.securityService.logSecurityEvent('UNAUTHORIZED_ACCESS', {
-            path: request.path,
-            method: request.method,
-            error: error.message,
-          }, request);
+          this.securityService.logSecurityEvent(
+            'UNAUTHORIZED_ACCESS',
+            {
+              path: request.path,
+              method: request.method,
+              error: error.message,
+            },
+            request
+          );
         } else if (error.status === 403) {
-          this.securityService.logSecurityEvent('FORBIDDEN_ACCESS', {
-            path: request.path,
-            method: request.method,
-            error: error.message,
-          }, request);
+          this.securityService.logSecurityEvent(
+            'FORBIDDEN_ACCESS',
+            {
+              path: request.path,
+              method: request.method,
+              error: error.message,
+            },
+            request
+          );
         } else if (error.status === 429) {
-          this.securityService.logSecurityEvent('RATE_LIMIT_EXCEEDED', {
-            path: request.path,
-            method: request.method,
-          }, request);
+          this.securityService.logSecurityEvent(
+            'RATE_LIMIT_EXCEEDED',
+            {
+              path: request.path,
+              method: request.method,
+            },
+            request
+          );
         }
 
         throw error;
-      }),
+      })
     );
   }
 
   private addSecurityHeaders(response: any): void {
+    if (!response || typeof response.setHeader !== 'function') {
+      throw new Error('Invalid response object');
+    }
+
     // Additional security headers beyond helmet
     response.setHeader('X-Request-ID', this.generateRequestId());
     response.setHeader('X-API-Version', '1.0');
-    response.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    response.setHeader(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, private'
+    );
     response.setHeader('Pragma', 'no-cache');
     response.setHeader('Expires', '0');
-    
+
     // Remove server information
     response.removeHeader('X-Powered-By');
     response.removeHeader('Server');
@@ -76,10 +95,10 @@ export class SecurityInterceptor implements NestInterceptor {
 
   private logSecurityRequest(request: SecurityRequest): void {
     const sensitiveHeaders = ['authorization', 'cookie', 'x-api-key'];
-    const sanitizedHeaders = { ...request.headers };
-    
+    const sanitizedHeaders = { ...(request.headers || {}) };
+
     // Mask sensitive headers
-    sensitiveHeaders.forEach(header => {
+    sensitiveHeaders.forEach((header) => {
       if (sanitizedHeaders[header]) {
         sanitizedHeaders[header] = '[MASKED]';
       }
@@ -102,7 +121,7 @@ export class SecurityInterceptor implements NestInterceptor {
     response: any,
     duration: number,
     success: boolean,
-    error?: any,
+    error?: any
   ): void {
     const logData = {
       method: request.method,

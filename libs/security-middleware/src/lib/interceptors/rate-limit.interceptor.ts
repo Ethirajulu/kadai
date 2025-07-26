@@ -26,24 +26,34 @@ export class RateLimitInterceptor implements NestInterceptor {
       tap(async (data) => {
         // On successful response, update rate limit headers if not already set
         await this.updateRateLimitHeaders(request, response);
-        
+
         // Log rate limit metrics for monitoring
-        this.logRateLimitMetrics(request, response, Date.now() - startTime, 'success');
+        this.logRateLimitMetrics(
+          request,
+          response,
+          Date.now() - startTime,
+          'success'
+        );
       }),
       catchError(async (error) => {
         // On error response, still update headers for rate limit information
         await this.updateRateLimitHeaders(request, response);
-        
+
         // Log rate limit metrics for errors
-        this.logRateLimitMetrics(request, response, Date.now() - startTime, 'error');
-        
+        this.logRateLimitMetrics(
+          request,
+          response,
+          Date.now() - startTime,
+          'error'
+        );
+
         throw error;
       })
     );
   }
 
   private async updateRateLimitHeaders(
-    request: SecurityRequest, 
+    request: SecurityRequest,
     response: Response
   ): Promise<void> {
     try {
@@ -62,15 +72,19 @@ export class RateLimitInterceptor implements NestInterceptor {
       // Set rate limit headers
       response.setHeader('X-RateLimit-Limit', status.limit.toString());
       response.setHeader('X-RateLimit-Remaining', status.remaining.toString());
-      response.setHeader('X-RateLimit-Reset', Math.ceil(status.resetTime / 1000).toString());
+      response.setHeader(
+        'X-RateLimit-Reset',
+        Math.ceil(status.resetTime / 1000).toString()
+      );
 
       // Add adaptive information if available
       if (status.isAdaptive && status.systemLoad) {
         response.setHeader('X-RateLimit-Adaptive', 'true');
-        response.setHeader('X-RateLimit-System-Load', 
+        response.setHeader(
+          'X-RateLimit-System-Load',
           JSON.stringify({
             cpu: Math.round(status.systemLoad.cpu),
-            memory: Math.round(status.systemLoad.memory)
+            memory: Math.round(status.systemLoad.memory),
           })
         );
       }
@@ -82,8 +96,10 @@ export class RateLimitInterceptor implements NestInterceptor {
       }
 
       // Add informational headers
-      response.setHeader('X-RateLimit-Policy', this.getRateLimitPolicy(isAuthenticated));
-      
+      response.setHeader(
+        'X-RateLimit-Policy',
+        this.getRateLimitPolicy(isAuthenticated)
+      );
     } catch (error) {
       this.logger.warn('Failed to update rate limit headers', error);
       // Don't throw error here as it would break the response
@@ -106,10 +122,15 @@ export class RateLimitInterceptor implements NestInterceptor {
     result: 'success' | 'error'
   ): void {
     try {
+      if (!request || !response) {
+        this.logger.warn('Invalid request or response for rate limit metrics');
+        return;
+      }
+
       const rateLimitInfo = request.rateLimitInfo;
       const isAuthenticated = !!(request.user && request.user.id);
       const clientId = isAuthenticated ? request.user?.id : request.ip;
-      
+
       // Create metrics object
       const metrics = {
         timestamp: new Date().toISOString(),
@@ -120,12 +141,14 @@ export class RateLimitInterceptor implements NestInterceptor {
         statusCode: response.statusCode,
         duration,
         result,
-        rateLimitInfo: rateLimitInfo ? {
-          remaining: rateLimitInfo.remaining,
-          limit: rateLimitInfo.limit,
-          resetTime: new Date(rateLimitInfo.resetTime).toISOString(),
-          totalHits: rateLimitInfo.totalHits,
-        } : undefined,
+        rateLimitInfo: rateLimitInfo
+          ? {
+              remaining: rateLimitInfo.remaining,
+              limit: rateLimitInfo.limit,
+              resetTime: new Date(rateLimitInfo.resetTime).toISOString(),
+              totalHits: rateLimitInfo.totalHits,
+            }
+          : undefined,
         securityFlags: request.securityFlags,
         userAgent: request.headers['user-agent'],
         origin: request.headers.origin,
@@ -143,7 +166,6 @@ export class RateLimitInterceptor implements NestInterceptor {
       // In a production environment, you might want to send these metrics
       // to a monitoring service like DataDog, New Relic, or CloudWatch
       this.sendMetricsToMonitoring(metrics);
-      
     } catch (error) {
       this.logger.error('Failed to log rate limit metrics', error);
     }
@@ -157,7 +179,7 @@ export class RateLimitInterceptor implements NestInterceptor {
     // - CloudWatch custom metrics
     // - Prometheus metrics
     // - Custom analytics service
-    
+
     if (process.env.NODE_ENV === 'development') {
       // In development, just log the metrics structure
       this.logger.debug('Metrics would be sent to monitoring service', {
@@ -177,7 +199,7 @@ export class RateLimitInterceptor implements NestInterceptor {
     }
 
     // Example integration with different monitoring services:
-    
+
     // DataDog StatsD
     // this.statsd?.increment('rate_limit.requests', 1, {
     //   authenticated: metrics.isAuthenticated.toString(),
@@ -199,5 +221,4 @@ export class RateLimitInterceptor implements NestInterceptor {
     //   result: metrics.result,
     // });
   }
-
 }
