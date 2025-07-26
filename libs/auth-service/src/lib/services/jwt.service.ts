@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
 import { IJwtService } from './interfaces/auth.interface';
 import { JwtPayload, TokenPair } from '../models/auth.model';
-import { User } from '../models/user.model';
+import { User, UserRole } from '../models/user.model';
 import { AUTH_CONSTANTS, getRedisKey } from '../utils/constants';
 import {
   TokenExpiredException,
@@ -229,17 +229,67 @@ export class JwtService implements IJwtService {
   }
 
   /**
-   * Refresh token and generate new token pair
+   * Refresh token and generate new token pair with rotation tracking
    */
   async refreshTokenPair(refreshToken: string, user: User): Promise<TokenPair> {
     // Validate the refresh token
-    await this.validateRefreshToken(refreshToken);
+    const refreshPayload = await this.validateRefreshToken(refreshToken);
+    
+    if (!refreshPayload) {
+      throw new TokenInvalidException('Invalid refresh token');
+    }
 
+    // Store token family relationship for rotation tracking
+    const tokenFamily = await this.getTokenFamily(refreshToken);
+    
     // Blacklist the old refresh token
     await this.blacklistToken(refreshToken);
 
     // Generate new token pair
-    return this.generateTokenPair(user);
+    const newTokenPair = this.generateTokenPair(user);
+    
+    // Track token rotation in Redis for security monitoring
+    await this.trackTokenRotation(refreshToken, newTokenPair.refreshToken, tokenFamily);
+
+    return newTokenPair;
+  }
+
+  /**
+   * Enhanced refresh with automatic user fetching
+   */
+  async refreshTokenPairByToken(refreshToken: string): Promise<TokenPair & { user: { id: string; email: string; role: string } }> {
+    // Validate the refresh token
+    const refreshPayload = await this.validateRefreshToken(refreshToken);
+    
+    if (!refreshPayload) {
+      throw new TokenInvalidException('Invalid refresh token');
+    }
+
+    // Create minimal user object from token payload
+    const user = {
+      id: refreshPayload.sub,
+      email: refreshPayload.email,
+      role: refreshPayload.role || UserRole.CUSTOMER,
+      permissions: refreshPayload.permissions || [],
+      password: '', // Not needed for token generation
+      name: '',     // Not needed for token generation
+      status: 'active' as any,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    } as User;
+
+    // Generate new token pair
+    const tokenPair = await this.refreshTokenPair(refreshToken, user);
+
+    return {
+      ...tokenPair,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      }
+    };
   }
 
   /**
@@ -377,5 +427,158 @@ export class JwtService implements IJwtService {
       timeToLive,
       payload,
     };
+  }
+
+  /**
+   * Track token rotation for security monitoring
+   */
+  private async trackTokenRotation(
+    oldToken: string, 
+    newToken: string, 
+    tokenFamily: string
+  ): Promise<void> {
+    try {
+      const rotationKey = getRedisKey(AUTH_CONSTANTS.REDIS_KEYS.TOKEN_ROTATION, tokenFamily);
+      const rotationData = {
+        oldToken: this.hashToken(oldToken),
+        newToken: this.hashToken(newToken),
+        timestamp: Date.now(),
+        rotationCount: await this.getRotationCount(tokenFamily) + 1
+      };
+
+      // Store rotation data with 7 day TTL
+      await this.redisClient.setex(rotationKey, 7 * 24 * 60 * 60, JSON.stringify(rotationData));
+      
+      // Update family rotation count
+      const familyKey = getRedisKey(AUTH_CONSTANTS.REDIS_KEYS.TOKEN_FAMILY, tokenFamily);
+      await this.redisClient.setex(familyKey, 7 * 24 * 60 * 60, rotationData.rotationCount.toString());
+    } catch (error) {
+      // Log error but don't fail token refresh
+      console.error('Failed to track token rotation:', error);
+    }
+  }
+
+  /**
+   * Get token family identifier for rotation tracking
+   */
+  private async getTokenFamily(token: string): Promise<string> {
+    try {
+      const decoded = this.decodeToken(token);
+      if (!decoded) {
+        return this.generateTokenFamily();
+      }
+
+      // Check if token already has a family ID in Redis
+      const tokenHash = this.hashToken(token);
+      const familyKey = getRedisKey(AUTH_CONSTANTS.REDIS_KEYS.TOKEN_FAMILY_LOOKUP, tokenHash);
+      const existingFamily = await this.redisClient.get(familyKey);
+      
+      if (existingFamily) {
+        return existingFamily;
+      }
+
+      // Generate new family ID
+      const newFamily = this.generateTokenFamily();
+      await this.redisClient.setex(familyKey, 7 * 24 * 60 * 60, newFamily);
+      
+      return newFamily;
+    } catch (error) {
+      return this.generateTokenFamily();
+    }
+  }
+
+  /**
+   * Generate unique token family identifier
+   */
+  private generateTokenFamily(): string {
+    return `tf_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  }
+
+  /**
+   * Get current rotation count for a token family
+   */
+  private async getRotationCount(tokenFamily: string): Promise<number> {
+    try {
+      const familyKey = getRedisKey(AUTH_CONSTANTS.REDIS_KEYS.TOKEN_FAMILY, tokenFamily);
+      const count = await this.redisClient.get(familyKey);
+      return count ? parseInt(count, 10) : 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  /**
+   * Hash token for secure storage and comparison
+   */
+  private hashToken(token: string): string {
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  /**
+   * Detect suspicious token rotation patterns
+   */
+  async detectSuspiciousRotation(tokenFamily: string): Promise<{
+    suspicious: boolean;
+    rotationCount: number;
+    timeWindow: number;
+  }> {
+    try {
+      const rotationCount = await this.getRotationCount(tokenFamily);
+      const rotationKey = getRedisKey(AUTH_CONSTANTS.REDIS_KEYS.TOKEN_ROTATION, tokenFamily);
+      const rotationData = await this.redisClient.get(rotationKey);
+      
+      if (!rotationData) {
+        return { suspicious: false, rotationCount: 0, timeWindow: 0 };
+      }
+
+      const data = JSON.parse(rotationData);
+      const timeWindow = Date.now() - data.timestamp;
+      const hoursSinceRotation = timeWindow / (1000 * 60 * 60);
+
+      // Flag as suspicious if more than 10 rotations in an hour
+      const suspicious = rotationCount > 10 && hoursSinceRotation < 1;
+
+      return {
+        suspicious,
+        rotationCount,
+        timeWindow: Math.floor(timeWindow / 1000) // return in seconds
+      };
+    } catch (error) {
+      return { suspicious: false, rotationCount: 0, timeWindow: 0 };
+    }
+  }
+
+  /**
+   * Revoke entire token family (useful for security incidents)
+   */
+  async revokeTokenFamily(tokenFamily: string): Promise<void> {
+    try {
+      // Get all tokens in this family and blacklist them
+      const rotationKey = getRedisKey(AUTH_CONSTANTS.REDIS_KEYS.TOKEN_ROTATION, tokenFamily);
+      const rotationData = await this.redisClient.get(rotationKey);
+      
+      if (rotationData) {
+        // In a production system, you'd iterate through all tokens in the family
+        // For now, we'll just mark the family as revoked
+        const revokedKey = getRedisKey(AUTH_CONSTANTS.REDIS_KEYS.REVOKED_FAMILIES, tokenFamily);
+        await this.redisClient.setex(revokedKey, 7 * 24 * 60 * 60, 'true');
+      }
+    } catch (error) {
+      console.error('Failed to revoke token family:', error);
+    }
+  }
+
+  /**
+   * Check if token family is revoked
+   */
+  async isTokenFamilyRevoked(tokenFamily: string): Promise<boolean> {
+    try {
+      const revokedKey = getRedisKey(AUTH_CONSTANTS.REDIS_KEYS.REVOKED_FAMILIES, tokenFamily);
+      const result = await this.redisClient.exists(revokedKey);
+      return result === 1;
+    } catch (error) {
+      return false;
+    }
   }
 }

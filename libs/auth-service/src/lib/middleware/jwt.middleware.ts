@@ -87,6 +87,89 @@ export class StrictJwtMiddleware implements NestMiddleware {
 }
 
 /**
+ * Auto-refresh JWT middleware that handles token refresh transparently
+ */
+@Injectable()
+export class AutoRefreshJwtMiddleware implements NestMiddleware {
+  constructor(private readonly jwtService: JwtService) {}
+
+  async use(req: JwtRequest, res: Response, next: NextFunction) {
+    try {
+      const authHeader = req.headers.authorization;
+      
+      if (!authHeader) {
+        return next();
+      }
+
+      const token = this.jwtService.extractTokenFromHeader(authHeader);
+      
+      if (!token) {
+        return next();
+      }
+
+      // Check if token is near expiration (within 5 minutes)
+      const timeToLive = this.jwtService.getTokenTimeToLive(token);
+      const shouldRefresh = timeToLive > 0 && timeToLive <= 300; // 5 minutes
+
+      // Validate the current token
+      let payload = await this.jwtService.validateToken(token).catch(() => null);
+
+      if (payload && shouldRefresh) {
+        // Token is valid but near expiration, signal for refresh
+        res.setHeader('X-Token-Refresh-Needed', 'true');
+        res.setHeader('X-Token-TTL', timeToLive.toString());
+      } else if (!payload && shouldRefresh) {
+        // Token might be expired but we can try to refresh it
+        // Look for refresh token in request (could be in cookies or body)
+        const refreshToken = this.extractRefreshToken(req);
+        
+        if (refreshToken) {
+          try {
+            // Use the enhanced refresh method that gets user automatically
+            const result = await this.jwtService.refreshTokenPairByToken(refreshToken);
+
+            // Set new tokens in response headers
+            res.setHeader('X-New-Access-Token', result.accessToken);
+            res.setHeader('X-New-Refresh-Token', result.refreshToken);
+            
+            // Update request with new token
+            payload = await this.jwtService.validateToken(result.accessToken);
+            req.jwtToken = result.accessToken;
+          } catch (refreshError) {
+            // Refresh failed, continue without user
+            return next();
+          }
+        }
+      }
+
+      if (payload) {
+        req.jwtUser = payload;
+        req.jwtToken = req.jwtToken || token;
+      }
+
+      next();
+    } catch (error) {
+      // Continue without user for auto-refresh middleware
+      next();
+    }
+  }
+
+  private extractRefreshToken(req: Request): string | null {
+    // Try multiple sources for refresh token
+    const body = req.body;
+    const cookies = req.cookies;
+    const headers = req.headers;
+
+    return (
+      body?.refreshToken ||
+      cookies?.refreshToken ||
+      headers['x-refresh-token'] as string ||
+      null
+    );
+  }
+}
+
+/**
  * JWT middleware factory for custom configurations
  */
 export class JwtMiddlewareFactory {
@@ -94,6 +177,8 @@ export class JwtMiddlewareFactory {
     strict?: boolean;
     optional?: boolean;
     skipPaths?: string[];
+    autoRefresh?: boolean;
+    refreshThreshold?: number; // seconds before expiration to trigger refresh
   } = {}) {
     return class implements NestMiddleware {
       async use(req: JwtRequest, res: Response, next: NextFunction) {
@@ -121,6 +206,19 @@ export class JwtMiddlewareFactory {
             return next();
           }
 
+          // Handle auto-refresh if enabled
+          if (options.autoRefresh) {
+            const timeToLive = jwtService.getTokenTimeToLive(token);
+            const refreshThreshold = options.refreshThreshold || 300; // default 5 minutes
+            const shouldRefresh = timeToLive > 0 && timeToLive <= refreshThreshold;
+
+            if (shouldRefresh) {
+              // Signal that token should be refreshed
+              res.setHeader('X-Token-Refresh-Needed', 'true');
+              res.setHeader('X-Token-TTL', timeToLive.toString());
+            }
+          }
+
           // Validate the token
           const payload = await jwtService.validateToken(token);
           
@@ -138,8 +236,8 @@ export class JwtMiddlewareFactory {
         } catch (error) {
           if (options.strict) {
             throw new UnauthorizedException(
-          error instanceof Error ? error.message : 'Authentication failed'
-        );
+              error instanceof Error ? error.message : 'Authentication failed'
+            );
           }
           next();
         }

@@ -38,6 +38,13 @@ export interface IJwtService {
   blacklistToken(token: string): Promise<void>;
   isTokenBlacklisted(token: string): Promise<boolean>;
   extractTokenFromHeader(authHeader: string): string | null;
+  refreshTokenPair(refreshToken: string, user: User): Promise<TokenPair>;
+  refreshTokenPairByToken(refreshToken: string): Promise<TokenPair & { user: { id: string; email: string; role: string } }>;
+  detectSuspiciousRotation(tokenFamily: string): Promise<{ suspicious: boolean; rotationCount: number; timeWindow: number }>;
+  revokeTokenFamily(tokenFamily: string): Promise<void>;
+  isTokenFamilyRevoked(tokenFamily: string): Promise<boolean>;
+  getTokenTimeToLive(token: string): number;
+  isTokenExpired(token: string): boolean;
 }
 
 export interface IPasswordService {

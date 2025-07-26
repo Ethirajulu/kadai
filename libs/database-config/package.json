@@ -23,27 +23,18 @@
     ],
     "targets": {
       "build": {
-        "executor": "nx:run-commands",
+        "executor": "@nx/js:tsc",
         "outputs": [
           "{options.outputPath}"
         ],
         "options": {
-          "commands": [
-            {
-              "command": "cd libs/database-config && npx tsc -p tsconfig.lib.json"
-            },
-            {
-              "command": "cp libs/database-config/package.json libs/database-config/dist/"
-            },
-            {
-              "command": "cp libs/database-config/*.md libs/database-config/dist/ || true"
-            },
-            {
-              "command": "node libs/database-config/scripts/copy-prisma.js"
-            }
-          ],
-          "parallel": false,
-          "cwd": "."
+          "outputPath": "dist/libs/database-config",
+          "tsConfig": "libs/database-config/tsconfig.lib.json",
+          "packageJson": "libs/database-config/package.json",
+          "main": "libs/database-config/src/index.ts",
+          "assets": [
+            "libs/database-config/*.md"
+          ]
         }
       }
     }

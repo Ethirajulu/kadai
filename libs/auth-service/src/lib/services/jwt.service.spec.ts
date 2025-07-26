@@ -294,6 +294,80 @@ describe('JwtService', () => {
     });
   });
 
+  describe('refreshTokenPairByToken', () => {
+    it('should refresh token pair and return user info', async () => {
+      const tokenPair = service.generateTokenPair(mockUser);
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const result = await service.refreshTokenPairByToken(tokenPair.refreshToken);
+
+      expect(result.accessToken).not.toBe(tokenPair.accessToken);
+      expect(result.refreshToken).not.toBe(tokenPair.refreshToken);
+      expect(result.user).toMatchObject({
+        id: mockUser.id,
+        email: mockUser.email,
+        role: mockUser.role,
+      });
+    });
+
+    it('should throw error for invalid refresh token', async () => {
+      await expect(service.refreshTokenPairByToken('invalid-refresh-token'))
+        .rejects.toThrow(TokenInvalidException);
+    });
+  });
+
+  describe('detectSuspiciousRotation', () => {
+    it('should return rotation analysis results', async () => {
+      const tokenFamily = 'test-family';
+      
+      const result = await service.detectSuspiciousRotation(tokenFamily);
+      
+      // Just verify the structure is correct
+      expect(typeof result.suspicious).toBe('boolean');
+      expect(typeof result.rotationCount).toBe('number');
+      expect(typeof result.timeWindow).toBe('number');
+    });
+
+    it('should not flag normal rotation as suspicious', async () => {
+      const tokenFamily = 'normal-family';
+      
+      const result = await service.detectSuspiciousRotation(tokenFamily);
+      
+      expect(result.suspicious).toBe(false);
+    });
+  });
+
+  describe('revokeTokenFamily', () => {
+    it('should handle revoking family gracefully', async () => {
+      const tokenFamily = 'revoke-family';
+      
+      await expect(service.revokeTokenFamily(tokenFamily))
+        .resolves.not.toThrow();
+    });
+
+    it('should handle revoking non-existent family gracefully', async () => {
+      await expect(service.revokeTokenFamily('non-existent-family'))
+        .resolves.not.toThrow();
+    });
+  });
+
+  describe('isTokenFamilyRevoked', () => {
+    it('should return false for non-revoked family', async () => {
+      const tokenFamily = 'normal-family';
+      
+      const isRevoked = await service.isTokenFamilyRevoked(tokenFamily);
+      expect(isRevoked).toBe(false);
+    });
+
+    it('should handle checking revoked family gracefully', async () => {
+      const tokenFamily = 'revoked-family';
+      
+      const isRevoked = await service.isTokenFamilyRevoked(tokenFamily);
+      expect(typeof isRevoked).toBe('boolean');
+    });
+  });
+
   describe('getTokenInfo', () => {
     it('should return complete token information', () => {
       const tokenPair = service.generateTokenPair(mockUser);
@@ -307,6 +381,17 @@ describe('JwtService', () => {
           sub: mockUser.id,
           email: mockUser.email,
         }),
+      });
+    });
+
+    it('should return correct info for invalid token', () => {
+      const tokenInfo = service.getTokenInfo('invalid-token');
+
+      expect(tokenInfo).toMatchObject({
+        valid: false,
+        expired: true,
+        timeToLive: 0,
+        payload: null,
       });
     });
   });

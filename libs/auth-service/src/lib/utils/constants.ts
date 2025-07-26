@@ -36,6 +36,10 @@ export const AUTH_CONSTANTS = {
     EMAIL_VERIFICATION_TOKENS: 'auth:verify:',
     LOGIN_ATTEMPTS: 'auth:attempts:',
     USER_SESSIONS: 'auth:sessions:',
+    TOKEN_ROTATION: 'auth:rotation:',
+    TOKEN_FAMILY: 'auth:family:',
+    TOKEN_FAMILY_LOOKUP: 'auth:family_lookup:',
+    REVOKED_FAMILIES: 'auth:revoked_families:',
   },
 
   // Default roles
