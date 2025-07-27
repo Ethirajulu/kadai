@@ -23,7 +23,6 @@ export class JwtGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<JWTAuthRequest>();
     
     try {
-      
       // Get security options from decorator metadata
       const securityOptions = this.reflector.getAllAndOverride<JWTSecurityOptions>('jwt-security', [
         context.getHandler(),
@@ -32,11 +31,25 @@ export class JwtGuard implements CanActivate {
 
       // Check if authentication is required
       const requireAuth = securityOptions?.requireAuth ?? true;
-      if (!requireAuth) {
-        return true;
-      }
+      
       // Extract token from request
       const token = this.jwtService.extractTokenFromRequest(request);
+      
+      if (!requireAuth) {
+        // For optional auth, still validate token if present
+        if (token) {
+          try {
+            const payload = await this.jwtService.validateAccessToken(token);
+            request.user = payload;
+            request.token = token;
+            request.tokenPayload = payload;
+          } catch (error) {
+            // Ignore validation errors for optional auth
+            this.logger.debug('Optional token validation failed', error);
+          }
+        }
+        return true;
+      }
       
       if (!token) {
         this.logger.warn('No authentication token provided');
@@ -50,6 +63,33 @@ export class JwtGuard implements CanActivate {
       request.user = payload;
       request.token = token;
       request.tokenPayload = payload;
+
+      // Additional security validations
+      // Check secure context requirement (HTTPS)
+      if (securityOptions?.requireSecureContext) {
+        if (!request.secure && request.protocol !== 'https') {
+          this.logger.warn('Insecure context detected when secure context required');
+          throw new UnauthorizedException('Secure context (HTTPS) required');
+        }
+      }
+
+      // Check token age validation
+      if (securityOptions?.maxTokenAge) {
+        const tokenAge = Math.floor(Date.now() / 1000) - payload.iat;
+        if (tokenAge > securityOptions.maxTokenAge) {
+          this.logger.warn(`Token too old: ${tokenAge}s, max allowed: ${securityOptions.maxTokenAge}s`);
+          throw new UnauthorizedException('Token too old');
+        }
+      }
+
+      // Check device ID validation
+      if (securityOptions?.validateDevice && payload.deviceId) {
+        const requestDeviceId = request.headers['x-device-id'] as string;
+        if (!requestDeviceId || requestDeviceId !== payload.deviceId) {
+          this.logger.warn(`Device ID mismatch. Token: ${payload.deviceId}, Request: ${requestDeviceId}`);
+          throw new UnauthorizedException('Device validation failed');
+        }
+      }
 
       // Check role-based access
       if (securityOptions?.requireRoles?.length) {
@@ -171,4 +211,5 @@ export class OptionalJwtGuard implements CanActivate {
       return true;
     }
   }
+
 }

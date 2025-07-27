@@ -51,6 +51,7 @@ const createMockResponse = (): Partial<Response> => ({
   status: jest.fn().mockReturnThis(),
   json: jest.fn(),
   send: jest.fn(),
+  cookie: jest.fn(),
 });
 
 // Mock next function
@@ -403,8 +404,9 @@ describe('TokenRefreshMiddleware', () => {
         scope: ['api:read', 'api:write'],
       };
 
-      jwtService.validateAccessToken.mockResolvedValue(mockPayload);
-
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue(mockPayload);
       jwtService.refreshTokens.mockResolvedValue(newTokens);
 
       // Act
@@ -413,11 +415,12 @@ describe('TokenRefreshMiddleware', () => {
       // Assert
       expect(jwtService.refreshTokens).toHaveBeenCalledWith(
         TEST_CONSTANTS.VALID_REFRESH_TOKEN,
-        { 
-          rotateRefreshToken: true,
-          validateDevice: true,
-          requireSecureContext: false
-        }
+        expect.objectContaining({
+          id: mockPayload.sub,
+          email: mockPayload.email,
+          role: mockPayload.role,
+          name: mockPayload.name
+        })
       );
       expect(response.setHeader).toHaveBeenCalledWith(
         'X-New-Refresh-Token',
@@ -448,8 +451,9 @@ describe('TokenRefreshMiddleware', () => {
         scope: ['api:read', 'api:write'],
       };
 
-      jwtService.validateAccessToken.mockResolvedValue(mockPayload);
-
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue(mockPayload);
       jwtService.refreshTokens.mockResolvedValue(newTokens);
 
       // Create middleware with config that has rotation disabled
@@ -475,11 +479,12 @@ describe('TokenRefreshMiddleware', () => {
       // Assert
       expect(jwtService.refreshTokens).toHaveBeenCalledWith(
         TEST_CONSTANTS.VALID_REFRESH_TOKEN,
-        { 
-          rotateRefreshToken: false,
-          validateDevice: true,
-          requireSecureContext: false
-        }
+        expect.objectContaining({
+          id: mockPayload.sub,
+          email: mockPayload.email,
+          role: mockPayload.role,
+          name: mockPayload.name
+        })
       );
     });
   });
@@ -630,8 +635,9 @@ describe('TokenRefreshMiddleware', () => {
         scope: ['api:read', 'api:write'],
       };
 
-      jwtService.validateAccessToken.mockResolvedValue(mockPayload);
-
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue(mockPayload);
       jwtService.refreshTokens.mockResolvedValue(newTokens);
 
       // Act

@@ -552,10 +552,7 @@ describe('JwtGuard', () => {
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Mock the security options to return validateDevice: true
-      reflector.getAllAndOverride
-        .mockReturnValueOnce(null) // For roles
-        .mockReturnValueOnce(null) // For permissions
-        .mockReturnValueOnce({ validateDevice: true }); // For security options
+      reflector.getAllAndOverride.mockReturnValue({ validateDevice: true });
 
       // Add wrong device header
       request.headers = {
@@ -628,10 +625,7 @@ describe('JwtGuard', () => {
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Mock the security options to return maxTokenAge: 1800 (30 minutes)
-      reflector.getAllAndOverride
-        .mockReturnValueOnce(null) // For roles
-        .mockReturnValueOnce(null) // For permissions
-        .mockReturnValueOnce({ maxTokenAge: 1800 }); // For security options
+      reflector.getAllAndOverride.mockReturnValue({ maxTokenAge: 1800 });
 
       // Act & Assert
       await expect(guard.canActivate(context)).rejects.toThrow(
@@ -682,10 +676,7 @@ describe('JwtGuard', () => {
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Mock the security options to return requireSecureContext: true
-      reflector.getAllAndOverride
-        .mockReturnValueOnce(null) // For roles
-        .mockReturnValueOnce(null) // For permissions
-        .mockReturnValueOnce({ requireSecureContext: true }); // For security options
+      reflector.getAllAndOverride.mockReturnValue({ requireSecureContext: true });
 
       // Act & Assert
       await expect(guard.canActivate(context)).rejects.toThrow(
@@ -738,10 +729,7 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
 
       // Mock the security options to return requireAuth: false
-      reflector.getAllAndOverride
-        .mockReturnValueOnce(null) // For roles
-        .mockReturnValueOnce(null) // For permissions
-        .mockReturnValueOnce({ requireAuth: false }); // For security options
+      reflector.getAllAndOverride.mockReturnValue({ requireAuth: false });
 
       // Act
       const result = await guard.canActivate(context);
@@ -762,10 +750,7 @@ describe('JwtGuard', () => {
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Mock the security options to return requireAuth: false
-      reflector.getAllAndOverride
-        .mockReturnValueOnce(null) // For roles
-        .mockReturnValueOnce(null) // For permissions
-        .mockReturnValueOnce({ requireAuth: false }); // For security options
+      reflector.getAllAndOverride.mockReturnValue({ requireAuth: false });
 
       // Act
       const result = await guard.canActivate(context);
