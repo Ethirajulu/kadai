@@ -81,7 +81,7 @@ describe('JWTService', () => {
     service = module.get<JWTService>(JWTService);
     jwtService = module.get(JwtService);
     redis = mockRedis as jest.Mocked<Redis>;
-    
+
     // Mock Redis initialization
     service['redis'] = redis as any;
   });
@@ -435,6 +435,268 @@ describe('JWTService', () => {
       const result = service.getTokenExpiration(mockToken);
 
       expect(result).toBe(mockPayload.exp);
+    });
+
+    it('should return null for token without expiration', () => {
+      const mockToken = 'token-without-exp';
+      const mockPayload = {
+        sub: mockUser.id,
+        email: mockUser.email,
+      };
+
+      jwtService.decode.mockReturnValue(mockPayload);
+
+      const result = service.getTokenExpiration(mockToken);
+
+      expect(result).toBeNull();
+    });
+
+    it('should handle decode errors gracefully', () => {
+      const mockToken = 'invalid-token';
+      jwtService.decode.mockImplementation(() => {
+        throw new Error('Token decode failed');
+      });
+
+      expect(() => service.decodeToken(mockToken)).toThrow(
+        'Token decode failed'
+      );
+    });
+  });
+
+  describe('Advanced Token Validation', () => {
+    it('should validate token with custom options', async () => {
+      const mockToken = 'custom-token';
+      const mockPayload = {
+        sub: mockUser.id,
+        iss: 'custom-issuer',
+        aud: 'custom-audience',
+        jti: 'token-id-123',
+      };
+
+      jwtService.verify.mockReturnValue(mockPayload);
+      redis.get.mockResolvedValue(null);
+
+      const result = await service.validateAccessToken(mockToken);
+
+      expect(jwtService.verify).toHaveBeenCalledWith(mockToken, {
+        secret: mockJwtConfig.accessTokenSecret,
+        issuer: mockJwtConfig.issuer,
+        audience: mockJwtConfig.audience,
+      });
+      expect(result).toEqual(mockPayload);
+    });
+
+    it('should handle expired tokens', async () => {
+      const mockToken = 'expired-token';
+      jwtService.verify.mockImplementation(() => {
+        const error = new Error('Token expired');
+        (error as any).name = 'TokenExpiredError';
+        throw error;
+      });
+
+      await expect(service.validateAccessToken(mockToken)).rejects.toThrow(
+        'Token expired'
+      );
+    });
+
+    it('should handle invalid signature', async () => {
+      const mockToken = 'invalid-signature-token';
+      jwtService.verify.mockImplementation(() => {
+        const error = new Error('Invalid signature');
+        (error as any).name = 'JsonWebTokenError';
+        throw error;
+      });
+
+      await expect(service.validateAccessToken(mockToken)).rejects.toThrow(
+        'Invalid signature'
+      );
+    });
+  });
+
+  describe('Token Storage and Cleanup', () => {
+    it('should clean up expired blacklisted tokens', async () => {
+      // Mock Redis SCAN for finding expired tokens
+      const expiredTokenKeys = [
+        'blacklist:expired-token-1',
+        'blacklist:expired-token-2',
+      ];
+
+      redis.scanStream.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield expiredTokenKeys;
+        },
+      } as any);
+
+      redis.ttl.mockResolvedValue(-1); // TTL expired
+      redis.del.mockResolvedValue(2);
+
+      await (service as any).cleanupExpiredTokens();
+
+      expect(redis.del).toHaveBeenCalledWith(expiredTokenKeys);
+    });
+
+    it('should store user token mapping', async () => {
+      const userId = 'user-123';
+      const tokenId = 'token-id-123';
+      const tokenType = 'access';
+      const expiresIn = 3600;
+
+      redis.setex.mockResolvedValue('OK');
+
+      await (service as any).storeUserTokenMapping(
+        userId,
+        tokenId,
+        tokenType,
+        expiresIn
+      );
+
+      expect(redis.setex).toHaveBeenCalledWith(
+        `user:${userId}:${tokenType}:${tokenId}`,
+        expiresIn,
+        'active'
+      );
+    });
+
+    it('should handle Redis errors during token cleanup', async () => {
+      redis.scanStream.mockImplementation(() => {
+        throw new Error('Redis scan failed');
+      });
+
+      // Should not throw, but handle error gracefully
+      await expect(
+        (service as any).cleanupExpiredTokens()
+      ).resolves.not.toThrow();
+    });
+  });
+
+  describe('Token Metrics and Monitoring', () => {
+    it('should track token generation metrics', async () => {
+      const userData = {
+        id: mockUser.id,
+        email: mockUser.email,
+        role: mockUser.role,
+      };
+
+      jwtService.sign
+        .mockReturnValueOnce('access-token-123')
+        .mockReturnValueOnce('refresh-token-123');
+
+      redis.setex.mockResolvedValue('OK');
+
+      const result = await service.generateTokenPair(userData);
+
+      expect(result).toEqual({
+        accessToken: 'access-token-123',
+        refreshToken: 'refresh-token-123',
+        expiresIn: 900, // 15 minutes
+      });
+    });
+
+    it('should validate token audience correctly', async () => {
+      const mockToken = 'token-with-audience';
+      const mockPayload = {
+        sub: mockUser.id,
+        aud: ['kadai-api', 'kadai-admin'],
+        jti: 'token-id-123',
+      };
+
+      jwtService.verify.mockReturnValue(mockPayload);
+      redis.get.mockResolvedValue(null);
+
+      const result = await service.validateAccessToken(mockToken);
+
+      expect(result).toEqual(mockPayload);
+    });
+
+    it('should handle malformed Authorization header', () => {
+      const mockRequest = {
+        headers: {
+          authorization: 'Invalid format token',
+        },
+      } as SecurityRequest;
+
+      const result = service.extractTokenFromRequest(mockRequest);
+
+      expect(result).toBeNull();
+    });
+
+    it('should extract token from custom header', () => {
+      const mockRequest = {
+        headers: {
+          'x-access-token': 'custom-header-token',
+        },
+        get: jest.fn((header: string) => {
+          if (header === 'x-access-token') return 'custom-header-token';
+          return undefined;
+        }),
+      } as any;
+
+      const result = service.extractTokenFromRequest(mockRequest);
+
+      expect(result).toBe('custom-header-token');
+    });
+  });
+
+  describe('Configuration and Environment', () => {
+    it('should handle missing Redis configuration gracefully', async () => {
+      // Create service without Redis
+      const noRedisService = new JWTService(jwtService, {
+        get: jest.fn().mockReturnValue(undefined),
+      } as any);
+
+      const tokenId = 'token-id-123';
+
+      // Should not throw error and return false for blacklist check
+      const result = await noRedisService.isTokenBlacklisted(tokenId);
+      expect(result).toBe(false);
+    });
+
+    it('should use fallback configuration values', () => {
+      const fallbackConfig = {
+        get: jest.fn((key: string) => {
+          // Return undefined for most configs to test fallbacks
+          if (key === 'security.jwt.algorithm') return 'RS256';
+          return undefined;
+        }),
+      };
+
+      const fallbackService = new JWTService(jwtService, fallbackConfig as any);
+      expect(fallbackService).toBeDefined();
+    });
+  });
+
+  describe('Concurrent Operations', () => {
+    it('should handle concurrent token validations', async () => {
+      const tokens = ['token1', 'token2', 'token3'];
+      const mockPayload = {
+        sub: mockUser.id,
+        jti: 'token-id',
+      };
+
+      jwtService.verify.mockReturnValue(mockPayload);
+      redis.get.mockResolvedValue(null);
+
+      const validations = tokens.map((token) =>
+        service.validateAccessToken(token)
+      );
+      const results = await Promise.all(validations);
+
+      expect(results).toHaveLength(3);
+      expect(results.every((result) => result.sub === mockUser.id)).toBe(true);
+    });
+
+    it('should handle concurrent blacklist operations', async () => {
+      const tokenIds = ['token1', 'token2', 'token3'];
+      const expirationTime = Math.floor(Date.now() / 1000) + 3600;
+
+      redis.setex.mockResolvedValue('OK');
+
+      const blacklistOps = tokenIds.map((tokenId) =>
+        service.blacklistToken(tokenId, expirationTime)
+      );
+
+      await expect(Promise.all(blacklistOps)).resolves.not.toThrow();
+      expect(redis.setex).toHaveBeenCalledTimes(3);
     });
   });
 });
