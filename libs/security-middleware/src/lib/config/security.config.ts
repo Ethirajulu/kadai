@@ -1,7 +1,7 @@
 import { registerAs } from '@nestjs/config';
-import { SecurityConfig } from '../types/security.types';
+import { SecurityConfigWithJWT } from '../types/security.types';
 
-export default registerAs('security', (): SecurityConfig => ({
+export default registerAs('security', (): SecurityConfigWithJWT => ({
   helmet: {
     contentSecurityPolicy: {
       directives: {
@@ -155,6 +155,50 @@ export default registerAs('security', (): SecurityConfig => ({
     headers: {
       includeHeaders: process.env.RATE_LIMIT_INCLUDE_HEADERS !== 'false',
       draft: process.env.RATE_LIMIT_HEADER_DRAFT || 'draft-7',
+    },
+  },
+  jwt: {
+    enabled: process.env.JWT_ENABLED !== 'false',
+    algorithm: (process.env.JWT_ALGORITHM as any) || 'HS256',
+    accessToken: {
+      secret: process.env.JWT_ACCESS_SECRET || 'fallback-access-secret-change-in-production',
+      expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+      publicKey: process.env.JWT_ACCESS_PUBLIC_KEY,
+    },
+    refreshToken: {
+      secret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret-change-in-production',
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      publicKey: process.env.JWT_REFRESH_PUBLIC_KEY,
+    },
+    issuer: process.env.JWT_ISSUER || 'kadai-auth',
+    audience: process.env.JWT_AUDIENCE || 'kadai-api',
+    redis: {
+      host: process.env.JWT_REDIS_HOST || process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.JWT_REDIS_PORT || process.env.REDIS_PORT || '6379', 10),
+      password: process.env.JWT_REDIS_PASSWORD || process.env.REDIS_PASSWORD,
+      db: parseInt(process.env.JWT_REDIS_DB || '2', 10),
+      keyPrefix: process.env.JWT_REDIS_KEY_PREFIX || 'jwt_blacklist:',
+      connectTimeout: parseInt(process.env.JWT_REDIS_CONNECT_TIMEOUT || '10000', 10),
+      lazyConnect: true,
+    },
+    blacklist: {
+      enabled: process.env.JWT_BLACKLIST_ENABLED !== 'false',
+      cleanupInterval: parseInt(process.env.JWT_BLACKLIST_CLEANUP_INTERVAL || '3600000', 10), // 1 hour
+      keyPrefix: process.env.JWT_BLACKLIST_KEY_PREFIX || 'jwt_blacklist:',
+    },
+    refresh: {
+      enabled: process.env.JWT_REFRESH_ENABLED !== 'false',
+      rotateTokens: process.env.JWT_REFRESH_ROTATE_TOKENS !== 'false',
+      renewalThreshold: parseInt(process.env.JWT_REFRESH_RENEWAL_THRESHOLD || '300000', 10), // 5 minutes
+      maxRefreshes: parseInt(process.env.JWT_REFRESH_MAX_REFRESHES || '10', 10),
+    },
+    security: {
+      validateIssuer: process.env.JWT_VALIDATE_ISSUER !== 'false',
+      validateAudience: process.env.JWT_VALIDATE_AUDIENCE !== 'false',
+      validateSubject: process.env.JWT_VALIDATE_SUBJECT !== 'false',
+      clockTolerance: parseInt(process.env.JWT_CLOCK_TOLERANCE || '30', 10),
+      requireExpirationTime: process.env.JWT_REQUIRE_EXPIRATION_TIME !== 'false',
+      requireNotBefore: process.env.JWT_REQUIRE_NOT_BEFORE === 'true',
     },
   },
 }));

@@ -80,7 +80,7 @@ describe('Security Decorators', () => {
 
   describe('Security Decorator', () => {
     it('should apply SecurityInterceptor', () => {
-      const decorator = Security();
+      Security();
       expect(UseInterceptors).toHaveBeenCalledWith(SecurityInterceptor);
       expect(applyDecorators).toHaveBeenCalledWith([SecurityInterceptor]);
     });
@@ -96,7 +96,7 @@ describe('Security Decorators', () => {
         legacyHeaders: false,
       };
 
-      const decorator = CustomRateLimit(customRule);
+      CustomRateLimit(customRule);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, customRule);
       expect(UseGuards).toHaveBeenCalledWith(RateLimitGuard);
@@ -111,7 +111,7 @@ describe('Security Decorators', () => {
 
   describe('RateLimit Decorator', () => {
     it('should apply rate limiting with default parameters', () => {
-      const decorator = RateLimit();
+      RateLimit();
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 100,
@@ -126,7 +126,7 @@ describe('Security Decorators', () => {
     });
 
     it('should apply rate limiting with custom parameters', () => {
-      const decorator = RateLimit(200, 30000);
+      RateLimit(200, 30000);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 200,
@@ -139,7 +139,7 @@ describe('Security Decorators', () => {
     });
 
     it('should handle different time windows correctly', () => {
-      const decorator = RateLimit(50, 120000); // 2 minutes
+      RateLimit(50, 120000); // 2 minutes
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 50,
@@ -154,7 +154,7 @@ describe('Security Decorators', () => {
 
   describe('StrictRateLimit Decorator', () => {
     it('should apply strict rate limiting with default parameters', () => {
-      const decorator = StrictRateLimit(10);
+      StrictRateLimit(10);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 10,
@@ -168,7 +168,7 @@ describe('Security Decorators', () => {
     });
 
     it('should apply strict rate limiting with custom parameters', () => {
-      const decorator = StrictRateLimit(5, 60000, 2);
+      StrictRateLimit(5, 60000, 2);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 5,
@@ -183,7 +183,7 @@ describe('Security Decorators', () => {
 
   describe('LenientRateLimit Decorator', () => {
     it('should apply lenient rate limiting with default parameters', () => {
-      const decorator = LenientRateLimit();
+      LenientRateLimit();
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 1000,
@@ -196,7 +196,7 @@ describe('Security Decorators', () => {
     });
 
     it('should apply lenient rate limiting with custom parameters', () => {
-      const decorator = LenientRateLimit(500, 1800000, 50);
+      LenientRateLimit(500, 1800000, 50);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 500,
@@ -211,7 +211,7 @@ describe('Security Decorators', () => {
 
   describe('BurstLimit Decorator', () => {
     it('should apply burst limiting with default message', () => {
-      const decorator = BurstLimit(10);
+      BurstLimit(10);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 100,
@@ -225,7 +225,7 @@ describe('Security Decorators', () => {
     });
 
     it('should apply burst limiting with custom message', () => {
-      const decorator = BurstLimit(5, 'Custom burst message');
+      BurstLimit(5, 'Custom burst message');
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 50,
@@ -240,7 +240,7 @@ describe('Security Decorators', () => {
 
   describe('DifferentiatedRateLimit Decorator', () => {
     it('should apply differentiated rate limiting', () => {
-      const decorator = DifferentiatedRateLimit(50, 200, 300000);
+      DifferentiatedRateLimit(50, 200, 300000);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 50, // Uses anonymous requests as default
@@ -253,7 +253,7 @@ describe('Security Decorators', () => {
     });
 
     it('should apply differentiated rate limiting with default window', () => {
-      const decorator = DifferentiatedRateLimit(30, 150);
+      DifferentiatedRateLimit(30, 150);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 30,
@@ -268,7 +268,7 @@ describe('Security Decorators', () => {
 
   describe('SlidingWindowRateLimit Decorator', () => {
     it('should apply sliding window rate limiting', () => {
-      const decorator = SlidingWindowRateLimit(100, 300000, 30);
+      SlidingWindowRateLimit(100, 300000, 30);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 100,
@@ -281,7 +281,7 @@ describe('Security Decorators', () => {
     });
 
     it('should apply sliding window rate limiting with default precision', () => {
-      const decorator = SlidingWindowRateLimit(50, 120000);
+      SlidingWindowRateLimit(50, 120000);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 50,
@@ -296,7 +296,7 @@ describe('Security Decorators', () => {
 
   describe('AuthEndpointRateLimit Decorator', () => {
     it('should apply auth endpoint rate limiting', () => {
-      const decorator = AuthEndpointRateLimit();
+      AuthEndpointRateLimit();
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 5,
@@ -317,7 +317,7 @@ describe('Security Decorators', () => {
 
   describe('PublicApiRateLimit Decorator', () => {
     it('should apply public API rate limiting', () => {
-      const decorator = PublicApiRateLimit();
+      PublicApiRateLimit();
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 100,
@@ -334,7 +334,7 @@ describe('Security Decorators', () => {
 
   describe('RequireWhitelist Decorator', () => {
     it('should apply whitelist requirement', () => {
-      const decorator = RequireWhitelist();
+      RequireWhitelist();
 
       // RequireWhitelist currently returns empty applyDecorators
       expect(applyDecorators).toHaveBeenCalledWith();
@@ -344,7 +344,7 @@ describe('Security Decorators', () => {
   describe('GeoFilter Decorator', () => {
     it('should apply geo filtering', () => {
       const allowedCountries = ['US', 'CA', 'GB'];
-      const decorator = GeoFilter(allowedCountries);
+      GeoFilter(allowedCountries);
 
       // GeoFilter currently returns empty applyDecorators
       expect(applyDecorators).toHaveBeenCalledWith();
@@ -353,7 +353,7 @@ describe('Security Decorators', () => {
 
   describe('ValidateAndSanitize Decorator', () => {
     it('should apply validation and sanitization', () => {
-      const decorator = ValidateAndSanitize();
+      ValidateAndSanitize();
 
       expect(UseInterceptors).toHaveBeenCalledWith(SecurityInterceptor);
       expect(applyDecorators).toHaveBeenCalledWith([SecurityInterceptor]);
@@ -362,7 +362,7 @@ describe('Security Decorators', () => {
 
   describe('Edge Cases and Error Handling', () => {
     it('should handle zero requests in rate limiting', () => {
-      const decorator = RateLimit(0, 60000);
+      RateLimit(0, 60000);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 0,
@@ -374,7 +374,7 @@ describe('Security Decorators', () => {
     });
 
     it('should handle very large time windows', () => {
-      const decorator = RateLimit(10, 24 * 60 * 60 * 1000); // 24 hours
+      RateLimit(10, 24 * 60 * 60 * 1000); // 24 hours
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 10,
@@ -387,7 +387,7 @@ describe('Security Decorators', () => {
     });
 
     it('should handle very small time windows', () => {
-      const decorator = RateLimit(100, 1000); // 1 second
+      RateLimit(100, 1000); // 1 second
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 100,
@@ -400,7 +400,7 @@ describe('Security Decorators', () => {
     });
 
     it('should handle negative burst values gracefully', () => {
-      const decorator = StrictRateLimit(10, 60000, -1);
+      StrictRateLimit(10, 60000, -1);
 
       expect(SetMetadata).toHaveBeenCalledWith(RATE_LIMIT_KEY, {
         requests: 10,
@@ -416,7 +416,7 @@ describe('Security Decorators', () => {
 
   describe('Decorator Composition', () => {
     it('should compose multiple decorators correctly', () => {
-      const decorator = applyDecorators(
+      applyDecorators(
         Security(),
         RateLimit(50, 60000),
         SkipIPWhitelist()
@@ -435,7 +435,7 @@ describe('Security Decorators', () => {
         legacyHeaders: false,
       };
 
-      const decorator = applyDecorators(
+      applyDecorators(
         CustomRateLimit(customRule),
         SkipGeoFilter()
       );

@@ -194,3 +194,157 @@ export interface SystemLoad {
   cpu: number; // CPU usage percentage
   memory: number; // Memory usage percentage
 }
+
+// JWT Token Management Types
+export interface JWTConfig {
+  enabled: boolean;
+  algorithm: 'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512';
+  accessToken: {
+    secret: string;
+    expiresIn: string; // e.g., '15m', '30m'
+    publicKey?: string; // For RSA algorithms
+  };
+  refreshToken: {
+    secret: string;
+    expiresIn: string; // e.g., '7d', '30d'
+    publicKey?: string; // For RSA algorithms
+  };
+  issuer: string;
+  audience: string;
+  redis: {
+    host: string;
+    port: number;
+    password?: string;
+    db?: number;
+    keyPrefix?: string;
+    connectTimeout?: number;
+    lazyConnect?: boolean;
+  };
+  blacklist: {
+    enabled: boolean;
+    cleanupInterval: number; // milliseconds
+    keyPrefix?: string;
+  };
+  refresh: {
+    enabled: boolean;
+    rotateTokens: boolean; // Generate new refresh token on refresh
+    renewalThreshold: number; // milliseconds before expiry to allow refresh
+    maxRefreshes?: number; // Maximum refreshes per token
+  };
+  security: {
+    validateIssuer: boolean;
+    validateAudience: boolean;
+    validateSubject: boolean;
+    clockTolerance: number; // seconds
+    requireExpirationTime: boolean;
+    requireNotBefore: boolean;
+  };
+}
+
+// User role enum for type safety
+export enum UserRole {
+  ADMIN = 'admin',
+  USER = 'user',
+  SELLER = 'seller',
+  MODERATOR = 'moderator'
+}
+
+// User interface for JWT operations
+export interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  name?: string;
+  permissions?: string[];
+  isActive?: boolean;
+}
+
+export interface JWTTokenPayload {
+  sub: string; // Subject (user ID)
+  id: string; // User ID (alias for sub for compatibility)
+  email?: string;
+  role?: string; // Optional for refresh tokens
+  name?: string;
+  permissions?: string[];
+  iat: number; // Issued at
+  exp: number; // Expiration time
+  iss: string; // Issuer
+  aud: string; // Audience
+  jti: string; // JWT ID (unique token identifier)
+  tokenType: 'access' | 'refresh';
+  sessionId?: string;
+  deviceId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  scope?: string[];
+  refreshCount?: number; // For refresh tokens
+}
+
+export interface JWTTokenPair {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number; // Access token expiration in seconds
+  tokenType: 'Bearer';
+  refreshExpiresIn?: number; // Refresh token expiration in seconds
+  issuedAt?: Date;
+  scope?: string[];
+}
+
+export interface TokenValidationResult {
+  valid: boolean;
+  payload?: JWTTokenPayload;
+  error?: string;
+  expired?: boolean;
+  blacklisted?: boolean;
+  errorCode?: 'INVALID_TOKEN' | 'EXPIRED_TOKEN' | 'BLACKLISTED_TOKEN' | 'MALFORMED_TOKEN' | 'INVALID_SIGNATURE';
+}
+
+export interface TokenBlacklistEntry {
+  jti: string; // JWT ID
+  userId: string;
+  tokenType: 'access' | 'refresh';
+  blacklistedAt: Date;
+  expiresAt: Date;
+  reason: 'user_logout' | 'security_breach' | 'token_rotation' | 'manual_revocation' | 'user_disabled';
+  ipAddress?: string;
+  userAgent?: string;
+  sessionId?: string;
+}
+
+export interface TokenRefreshOptions {
+  rotateRefreshToken?: boolean;
+  extendExpiration?: boolean;
+  validateDevice?: boolean;
+  requireSecureContext?: boolean;
+}
+
+export interface TokenRefreshResult {
+  success: boolean;
+  tokens?: JWTTokenPair;
+  error?: string;
+  errorCode?: 'INVALID_REFRESH_TOKEN' | 'EXPIRED_REFRESH_TOKEN' | 'BLACKLISTED_TOKEN' | 'MAX_REFRESHES_EXCEEDED';
+}
+
+export interface JWTAuthRequest extends Omit<SecurityRequest, 'user'> {
+  user?: JWTTokenPayload;
+  token?: string;
+  refreshToken?: string;
+  tokenPayload?: JWTTokenPayload;
+  isTokenRefreshed?: boolean;
+  authError?: string;
+}
+
+export interface JWTSecurityOptions {
+  requireAuth?: boolean;
+  requireRoles?: string[];
+  requirePermissions?: string[];
+  allowRefreshToken?: boolean;
+  validateDevice?: boolean;
+  requireSecureContext?: boolean;
+  maxTokenAge?: number; // Maximum token age in seconds
+}
+
+// Extend SecurityConfig to include JWT
+export interface SecurityConfigWithJWT extends SecurityConfig {
+  jwt?: JWTConfig;
+}

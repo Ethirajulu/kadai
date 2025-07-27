@@ -6,7 +6,6 @@ import { SecurityRequest } from '../types/security.types';
 
 describe('ValidationGuard', () => {
   let guard: ValidationGuard;
-  let validationService: ValidationService;
 
   const mockValidationService = {
     getValidationMiddleware: jest.fn(),
@@ -24,7 +23,7 @@ describe('ValidationGuard', () => {
     }).compile();
 
     guard = module.get<ValidationGuard>(ValidationGuard);
-    validationService = module.get<ValidationService>(ValidationService);
+    // validationService = module.get<ValidationService>(ValidationService);
   });
 
   afterEach(() => {

@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ExecutionContext, CallHandler, Logger } from '@nestjs/common';
+import { ExecutionContext, CallHandler } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
-import { Response } from 'express';
 import { RateLimitInterceptor } from './rate-limit.interceptor';
 import { RateLimitService } from '../services/rate-limit.service';
 import { SecurityRequest } from '../types/security.types';

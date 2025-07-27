@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ExecutionContext, CallHandler, Logger } from '@nestjs/common';
+import { ExecutionContext, CallHandler } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { SecurityInterceptor } from './security.interceptor';
 import { SecurityService } from '../services/security.service';
