@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
 import * as os from 'os';
 import {
   RateLimitConfig,
@@ -13,12 +12,14 @@ import {
   ValidatedRedisResponse,
   BurstCheckResponse,
 } from '../types/security.types';
+import { RedisConnectionPool, PoolConfig } from '../utils/redis-connection-pool';
 
 @Injectable()
 export class RateLimitService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RateLimitService.name);
-  private redis!: Redis;
+  private connectionPool?: RedisConnectionPool;
   private config: RateLimitConfig;
+  private isInitialized = false;
 
   // Lua scripts for atomic operations
   private readonly slidingWindowScript = `
@@ -181,28 +182,28 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     if (this.config.enabled) {
-      await this.initializeRedis();
-      this.logger.log('Rate limiting service initialized with Redis backend');
+      await this.initializeRedisPool();
+      this.logger.log('Rate limiting service initialized with Redis connection pool');
     } else {
       this.logger.log('Rate limiting is disabled');
     }
   }
 
   async onModuleDestroy() {
-    if (this.redis) {
+    if (this.connectionPool) {
       try {
-        await this.redis.disconnect();
-        this.logger.log('Redis connection closed');
+        await this.connectionPool.shutdown();
+        this.logger.log('Redis connection pool closed');
       } catch (error) {
-        this.logger.error('Error disconnecting Redis', error);
+        this.logger.error('Error shutting down Redis connection pool', error);
         // Don't throw error during shutdown
       }
     }
   }
 
-  private async initializeRedis(): Promise<void> {
+  private async initializeRedisPool(): Promise<void> {
     try {
-      this.redis = new Redis({
+      const poolConfig: PoolConfig = {
         host: this.config.redis.host,
         port: this.config.redis.port,
         password: this.config.redis.password,
@@ -211,42 +212,52 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
         connectTimeout: this.config.redis.connectTimeout || 10000,
         lazyConnect: this.config.redis.lazyConnect ?? true,
         maxRetriesPerRequest: this.config.redis.maxRetriesPerRequest || 3,
-      });
+        retryDelayOnFailover: this.config.redis.retryDelayOnFailover || 100,
+        poolSize: this.config.redis.poolSize || 3,
+        healthCheckInterval: this.config.redis.healthCheckInterval || 30000,
+        enableOfflineQueue: this.config.redis.enableOfflineQueue ?? false,
+        circuitBreaker: {
+          failureThreshold: this.config.redis.circuitBreaker?.failureThreshold || 5,
+          recoveryTimeout: this.config.redis.circuitBreaker?.recoveryTimeout || 60000,
+          monitoringWindow: this.config.redis.circuitBreaker?.monitoringWindow || 300000,
+        },
+      };
 
-      // Test Redis connection
-      await this.redis.ping();
-      this.logger.log('Redis connection established successfully');
+      this.connectionPool = new RedisConnectionPool(poolConfig);
+      await this.connectionPool.initialize();
+      this.isInitialized = true;
+      this.logger.log('Redis connection pool established successfully');
     } catch (error) {
-      this.logger.error('Failed to connect to Redis', error);
+      this.logger.error('Failed to initialize Redis connection pool', error);
       throw error;
     }
   }
 
   async checkRateLimit(options: RateLimitOptions): Promise<RateLimitResult> {
-    if (!this.config.enabled) {
+    if (!this.config.enabled || !this.isInitialized) {
       return this.createAllowedResult();
     }
 
+    // Check if request should be skipped
+    if (this.isWhitelisted(options.request)) {
+      return this.createAllowedResult();
+    }
+
+    // Get appropriate rate limit rule
+    const rule = this.getRateLimitRule(options);
+    
+    // Apply adaptive limiting if enabled
+    const adaptiveRule = this.config.adaptive.enabled 
+      ? await this.applyAdaptiveLimiting(rule) 
+      : rule;
+
+    // Generate rate limit key
+    const key = this.createRateLimitKey(options);
+
     try {
-      // Check if request should be skipped
-      if (this.isWhitelisted(options.request)) {
-        return this.createAllowedResult();
-      }
-
-      // Get appropriate rate limit rule
-      const rule = this.getRateLimitRule(options);
-      
-      // Apply adaptive limiting if enabled
-      const adaptiveRule = this.config.adaptive.enabled 
-        ? await this.applyAdaptiveLimiting(rule) 
-        : rule;
-
-      // Generate rate limit key
-      const key = this.createRateLimitKey(options);
-
       // Check burst protection if enabled
       if (options.checkBurst && adaptiveRule.burst) {
-        const burstResult = await this.checkBurstLimit(key, adaptiveRule);
+        const burstResult = await this.checkBurstLimitWithFallback(key, adaptiveRule);
         if (burstResult.exceeded) {
           return {
             allowed: false,
@@ -258,13 +269,13 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      // Check main rate limit
+      // Check main rate limit with circuit breaker protection
       const windowType = options.windowType || 
         (this.config.slidingWindow.enabled ? 'sliding' : 'fixed');
 
       const result = windowType === 'sliding' 
-        ? await this.checkSlidingWindow(key, adaptiveRule)
-        : await this.checkFixedWindow(key, adaptiveRule);
+        ? await this.checkSlidingWindowWithFallback(key, adaptiveRule)
+        : await this.checkFixedWindowWithFallback(key, adaptiveRule);
 
       return {
         ...result,
@@ -273,95 +284,106 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
       };
     } catch (error) {
       this.logger.error('Rate limit check failed', error);
-      // Fail-open: allow request when Redis is unavailable
-      return {
-        ...this.createAllowedResult(),
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      // Graceful degradation: allow request when Redis is unavailable
+      return this.createGracefulDegradationResult(error);
     }
   }
 
-  private async checkSlidingWindow(key: string, rule: RateLimitRule): Promise<RateLimitResult> {
+  private async checkSlidingWindowWithFallback(key: string, rule: RateLimitRule): Promise<RateLimitResult> {
+    if (!this.connectionPool) {
+      return this.createAllowedResult();
+    }
+
     const now = Date.now();
     
-    try {
-      const rawResult = await this.redis.eval(
-        this.slidingWindowScript,
-        1,
-        key,
-        rule.windowMs.toString(),
-        rule.requests.toString(),
-        now.toString(),
-        this.config.slidingWindow.precision.toString()
-      );
+    return this.connectionPool.execute(
+      async (redis) => {
+        const rawResult = await redis.eval(
+          this.slidingWindowScript,
+          1,
+          key,
+          rule.windowMs.toString(),
+          rule.requests.toString(),
+          now.toString(),
+          this.config.slidingWindow.precision.toString()
+        );
 
-      const { current, remaining, resetTimeMs } = this.validateRedisResponse(rawResult);
-      
-      return {
-        allowed: remaining > 0,
-        remaining: Math.max(0, remaining),
-        resetTime: now + resetTimeMs,
-        totalHits: current,
-      };
-    } catch (error) {
-      this.logger.error(`Sliding window check failed for key ${key}`, error);
-      // Preserve original error message for backward compatibility in tests
-      throw error instanceof Error ? error : new Error('Redis sliding window operation failed');
-    }
+        const { current, remaining, resetTimeMs } = this.validateRedisResponse(rawResult);
+        
+        return {
+          allowed: remaining > 0,
+          remaining: Math.max(0, remaining),
+          resetTime: now + resetTimeMs,
+          totalHits: current,
+        };
+      },
+      () => {
+        this.logger.warn(`Sliding window check failed for key ${key}, using fallback`);
+        return this.createAllowedResult();
+      }
+    );
   }
 
-  private async checkFixedWindow(key: string, rule: RateLimitRule): Promise<RateLimitResult> {
+  private async checkFixedWindowWithFallback(key: string, rule: RateLimitRule): Promise<RateLimitResult> {
+    if (!this.connectionPool) {
+      return this.createAllowedResult();
+    }
+
     const now = Date.now();
     
-    try {
-      const rawResult = await this.redis.eval(
-        this.fixedWindowScript,
-        1,
-        key,
-        rule.windowMs.toString(),
-        rule.requests.toString(),
-        now.toString()
-      );
+    return this.connectionPool.execute(
+      async (redis) => {
+        const rawResult = await redis.eval(
+          this.fixedWindowScript,
+          1,
+          key,
+          rule.windowMs.toString(),
+          rule.requests.toString(),
+          now.toString()
+        );
 
-      const { current, remaining, resetTimeMs } = this.validateRedisResponse(rawResult);
-      
-      return {
-        allowed: remaining > 0,
-        remaining: Math.max(0, remaining),
-        resetTime: now + resetTimeMs,
-        totalHits: current,
-      };
-    } catch (error) {
-      this.logger.error(`Fixed window check failed for key ${key}`, error);
-      // Preserve original error message for backward compatibility in tests
-      throw error instanceof Error ? error : new Error('Redis fixed window operation failed');
-    }
+        const { current, remaining, resetTimeMs } = this.validateRedisResponse(rawResult);
+        
+        return {
+          allowed: remaining > 0,
+          remaining: Math.max(0, remaining),
+          resetTime: now + resetTimeMs,
+          totalHits: current,
+        };
+      },
+      () => {
+        this.logger.warn(`Fixed window check failed for key ${key}, using fallback`);
+        return this.createAllowedResult();
+      }
+    );
   }
 
-  private async checkBurstLimit(key: string, rule: RateLimitRule): Promise<{ exceeded: boolean; count: number }> {
-    if (!rule.burst) {
+  private async checkBurstLimitWithFallback(key: string, rule: RateLimitRule): Promise<{ exceeded: boolean; count: number }> {
+    if (!rule.burst || !this.connectionPool) {
       return { exceeded: false, count: 0 };
     }
 
     const now = Date.now();
     
-    try {
-      const rawResult = await this.redis.eval(
-        this.burstCheckScript,
-        1,
-        key,
-        '60000', // 60 second burst window
-        rule.burst.toString(),
-        now.toString()
-      );
+    return this.connectionPool.execute(
+      async (redis) => {
+        const rawResult = await redis.eval(
+          this.burstCheckScript,
+          1,
+          key,
+          '60000', // 60 second burst window
+          rule.burst!.toString(),
+          now.toString()
+        );
 
-      const { exceeded, count } = this.validateBurstResponse(rawResult);
-      return { exceeded, count };
-    } catch (error) {
-      this.logger.error(`Burst limit check failed for key ${key}`, error);
-      // Preserve original error message for backward compatibility in tests
-      throw error instanceof Error ? error : new Error('Redis burst check operation failed');
-    }
+        const { exceeded, count } = this.validateBurstResponse(rawResult);
+        return { exceeded, count };
+      },
+      () => {
+        this.logger.warn(`Burst limit check failed for key ${key}, using fallback (allow)`);
+        return { exceeded: false, count: 0 };
+      }
+    );
   }
 
   private async applyAdaptiveLimiting(rule: RateLimitRule): Promise<RateLimitRule> {
@@ -420,7 +442,7 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getRateLimitStatus(options: RateLimitOptions): Promise<RateLimitStatus> {
-    if (!this.config.enabled) {
+    if (!this.config.enabled || !this.isInitialized || !this.connectionPool) {
       return this.createDefaultStatus();
     }
 
@@ -428,20 +450,27 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
       const key = this.createRateLimitKey(options);
       const rule = this.getRateLimitRule(options);
       
-      const current = await this.redis.get(key);
-      const ttl = await this.redis.ttl(key);
+      const result = await this.connectionPool.execute(
+        async (redis) => {
+          const current = await redis.get(key);
+          const ttl = await redis.ttl(key);
+          
+          const currentCount = current ? parseInt(current, 10) : 0;
+          const resetTime = Date.now() + (ttl > 0 ? ttl * 1000 : rule.windowMs);
+          
+          return {
+            current: currentCount,
+            limit: rule.requests,
+            remaining: Math.max(0, rule.requests - currentCount),
+            resetTime,
+            isAdaptive: this.config.adaptive.enabled,
+            systemLoad: this.config.adaptive.enabled ? await this.getSystemLoad() : undefined,
+          };
+        },
+        () => this.createDefaultStatus()
+      );
       
-      const currentCount = current ? parseInt(current, 10) : 0;
-      const resetTime = Date.now() + (ttl > 0 ? ttl * 1000 : rule.windowMs);
-      
-      return {
-        current: currentCount,
-        limit: rule.requests,
-        remaining: Math.max(0, rule.requests - currentCount),
-        resetTime,
-        isAdaptive: this.config.adaptive.enabled,
-        systemLoad: this.config.adaptive.enabled ? await this.getSystemLoad() : undefined,
-      };
+      return result;
     } catch (error) {
       this.logger.error('Failed to get rate limit status', error);
       return this.createDefaultStatus();
@@ -528,6 +557,67 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /**
+   * Create graceful degradation result when Redis is unavailable
+   */
+  private createGracefulDegradationResult(error: unknown): RateLimitResult {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Log the degradation
+    this.logger.warn('Rate limiting degraded - allowing request due to Redis unavailability', {
+      error: errorMessage,
+      circuitBreakerState: this.connectionPool?.getPoolHealth().circuitBreakerState,
+    });
+
+    return {
+      ...this.createAllowedResult(),
+      error: `Service degraded: ${errorMessage}`,
+    };
+  }
+
+  /**
+   * Get Redis connection pool health status
+   */
+  getRedisHealth(): {
+    isHealthy: boolean;
+    poolHealth?: any;
+    circuitBreakerState?: string;
+  } {
+    if (!this.connectionPool) {
+      return {
+        isHealthy: false,
+        circuitBreakerState: 'NOT_INITIALIZED',
+      };
+    }
+
+    const poolHealth = this.connectionPool.getPoolHealth();
+    
+    return {
+      isHealthy: this.connectionPool.isHealthy(),
+      poolHealth,
+      circuitBreakerState: poolHealth.circuitBreakerState,
+    };
+  }
+
+  /**
+   * Get service health status including Redis connectivity
+   */
+  getServiceHealth(): {
+    isHealthy: boolean;
+    enabled: boolean;
+    initialized: boolean;
+    redisHealth: any;
+  } {
+    const redisHealth = this.getRedisHealth();
+    
+    return {
+      isHealthy: this.config.enabled ? this.isInitialized && redisHealth.isHealthy : true,
+      enabled: this.config.enabled,
+      initialized: this.isInitialized,
+      redisHealth,
+    };
+  }
+
   private getDefaultConfig(): RateLimitConfig {
     return {
       enabled: false,
@@ -535,6 +625,20 @@ export class RateLimitService implements OnModuleInit, OnModuleDestroy {
         host: 'localhost',
         port: 6379,
         keyPrefix: 'rate_limit:',
+        connectTimeout: 10000,
+        lazyConnect: true,
+        maxRetriesPerRequest: 3,
+        retryDelayOnFailover: 100,
+        poolSize: 3,
+        healthCheckInterval: 30000,
+        enableOfflineQueue: false,
+        circuitBreaker: {
+          enabled: true,
+          failureThreshold: 5,
+          recoveryTimeout: 60000,
+          monitoringWindow: 300000,
+          expectedFailureRate: 0.5,
+        },
       },
       defaultLimits: {
         anonymous: {

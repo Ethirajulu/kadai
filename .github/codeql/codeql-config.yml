@@ -1,0 +1,77 @@
+name: "Kadai Security CodeQL Config"
+
+# Disable the default security-extended query suite in favor of custom configuration
+disable-default-queries: false
+
+# Custom queries for enhanced security scanning
+queries:
+  - name: security-extended
+    uses: security-extended
+  - name: security-and-quality
+    uses: security-and-quality
+
+# Query filters to focus on security-relevant issues
+query-filters:
+  - exclude:
+      id: js/unused-local-variable
+  - exclude:
+      id: ts/unused-local-variable
+  - include:
+      tags:
+        - security
+        - external/cwe
+
+# Paths to exclude from analysis
+paths-ignore:
+  - "node_modules/**"
+  - "dist/**"
+  - "tmp/**"
+  - "**/generated/**"
+  - "**/*.min.js"
+  - "**/*.bundle.js"
+  - "**/coverage/**"
+  - "**/*.d.ts"
+  - "venv/**"
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+
+# Paths to specifically include
+paths:
+  - "apps/**"
+  - "libs/**"
+  - "scripts/**"
+
+# Language-specific configurations
+packs:
+  # JavaScript/TypeScript security packs
+  javascript:
+    - "codeql/javascript-queries:AlertSuppression.ql"
+    - "codeql/javascript-queries:Security/CWE-079"
+    - "codeql/javascript-queries:Security/CWE-089"
+    - "codeql/javascript-queries:Security/CWE-094"
+    - "codeql/javascript-queries:Security/CWE-116"
+    - "codeql/javascript-queries:Security/CWE-200"
+    - "codeql/javascript-queries:Security/CWE-209"
+    - "codeql/javascript-queries:Security/CWE-295"
+    - "codeql/javascript-queries:Security/CWE-312"
+    - "codeql/javascript-queries:Security/CWE-327"
+    - "codeql/javascript-queries:Security/CWE-352"
+    - "codeql/javascript-queries:Security/CWE-400"
+    - "codeql/javascript-queries:Security/CWE-601"
+    - "codeql/javascript-queries:Security/CWE-643"
+    - "codeql/javascript-queries:Security/CWE-776"
+    - "codeql/javascript-queries:Security/CWE-798"
+    - "codeql/javascript-queries:Security/CWE-830"
+
+  # Python security packs  
+  python:
+    - "codeql/python-queries:Security/CWE-079"
+    - "codeql/python-queries:Security/CWE-089"
+    - "codeql/python-queries:Security/CWE-094"
+    - "codeql/python-queries:Security/CWE-200"
+    - "codeql/python-queries:Security/CWE-295"
+    - "codeql/python-queries:Security/CWE-312"
+    - "codeql/python-queries:Security/CWE-327"
+    - "codeql/python-queries:Security/CWE-352"
+    - "codeql/python-queries:Security/CWE-643"
+    - "codeql/python-queries:Security/CWE-798"

@@ -15,3 +15,5 @@ export * from './lib/decorators/security.decorators';
 export * from './lib/decorators/jwt.decorators';
 export * from './lib/types/security.types';
 export * from './lib/config/security.config';
+export * from './lib/utils/redis-circuit-breaker';
+export * from './lib/utils/redis-connection-pool';

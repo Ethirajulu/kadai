@@ -26,7 +26,17 @@
     "dev:status": "./scripts/setup-dev.sh status",
     "dev:down": "./scripts/setup-dev.sh down",
     "dev:cleanup": "./scripts/setup-dev.sh cleanup",
-    "dev:logs": "./scripts/setup-dev.sh logs"
+    "dev:logs": "./scripts/setup-dev.sh logs",
+    "security:scan": "./scripts/security-scan.sh",
+    "security:scan:deps": "snyk test",
+    "security:scan:code": "snyk code test",
+    "security:scan:container": "snyk container test",
+    "security:fix": "snyk fix",
+    "security:monitor": "snyk monitor",
+    "security:audit": "pnpm audit",
+    "security:audit:fix": "pnpm audit --fix",
+    "lint:security": "eslint . --ext .ts,.js,.tsx,.jsx --config .eslintrc-security.js",
+    "test:security": "jest --testNamePattern=security --coverage"
   },
   "prisma": {
     "seed": "npx ts-node libs/database-config/src/postgresql/seed.ts"

@@ -1,0 +1,278 @@
+name: Security Scan (SAST)
+
+on:
+  push:
+    branches: [ main, develop, security-framework ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans daily at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22.16.0'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Static Application Security Testing (SAST)
+  sast-analysis:
+    name: SAST Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript', 'typescript', 'python' ]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Shallow clones should be disabled for better analysis
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'pnpm'
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        pnpm install --frozen-lockfile
+        pip install -r apps/ai-service/requirements.txt
+
+    # CodeQL Analysis
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        config-file: ./.github/codeql/codeql-config.yml
+        
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+      if: matrix.language == 'javascript' || matrix.language == 'python'
+
+    - name: Manual build for TypeScript
+      if: matrix.language == 'typescript'
+      run: |
+        pnpm prisma generate
+        pnpm build
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+
+  # Dependency vulnerability scanning with Snyk
+  snyk-security:
+    name: Snyk Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'pnpm'
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    # Snyk dependency scanning
+    - name: Run Snyk to check for vulnerabilities
+      uses: snyk/actions/node@master
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high --file=package.json
+
+    # Snyk code scanning
+    - name: Run Snyk Code analysis
+      uses: snyk/actions/node@master
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        command: code test
+        args: --severity-threshold=high
+
+    # Snyk Docker scanning
+    - name: Run Snyk Docker scan
+      uses: snyk/actions/docker@master
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        image: node:22.16.0-alpine
+        args: --severity-threshold=high
+
+    # Upload results to GitHub Security tab
+    - name: Upload Snyk results to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: snyk.sarif
+
+  # SonarQube analysis
+  sonarqube:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Shallow clones should be disabled for better analysis
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'pnpm'
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Generate Prisma client
+      run: pnpm prisma generate
+
+    - name: Run tests with coverage
+      run: pnpm nx run-many -t test --coverage --passWithNoTests
+
+    - name: SonarQube Scan
+      uses: sonarqube-quality-gate-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  # Semgrep static analysis
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Semgrep
+      uses: semgrep/semgrep-action@v1
+      with:
+        config: >-
+          p/security-audit
+          p/nodejs
+          p/typescript
+          p/python
+          p/docker
+          p/secrets
+        publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
+        publishDeployment: ${{ github.event.deployment.id }}
+        generateSarif: "1"
+
+    - name: Upload Semgrep results to GitHub
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: semgrep.sarif
+
+  # Security quality gate
+  security-gate:
+    name: Security Quality Gate
+    needs: [sast-analysis, snyk-security, sonarqube, semgrep]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Check security scan results
+      run: |
+        echo "Security Analysis Results:"
+        echo "========================="
+        echo "SAST Analysis: ${{ needs.sast-analysis.result }}"
+        echo "Snyk Security: ${{ needs.snyk-security.result }}"
+        echo "SonarQube: ${{ needs.sonarqube.result }}"
+        echo "Semgrep: ${{ needs.semgrep.result }}"
+        
+        # Fail if any critical security job failed
+        if [[ "${{ needs.sast-analysis.result }}" == "failure" ]]; then
+          echo "❌ Critical: SAST analysis failed"
+          exit 1
+        fi
+        
+        if [[ "${{ needs.sonarqube.result }}" == "failure" ]]; then
+          echo "❌ Critical: SonarQube quality gate failed"
+          exit 1
+        fi
+        
+        # Allow Snyk and Semgrep to fail gracefully (they run with continue-on-error)
+        # but report the status
+        if [[ "${{ needs.snyk-security.result }}" != "success" ]]; then
+          echo "⚠️  Warning: Snyk security scan had issues"
+        fi
+        
+        if [[ "${{ needs.semgrep.result }}" != "success" ]]; then
+          echo "⚠️  Warning: Semgrep analysis had issues"
+        fi
+        
+        echo "✅ Security quality gate passed"
+
+  # Notify on security issues
+  notify:
+    name: Security Notifications
+    needs: [security-gate]
+    runs-on: ubuntu-latest
+    if: failure() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    steps:
+    - name: Send security alert
+      run: |
+        echo "🚨 SECURITY ALERT: Security scan failed on ${{ github.ref }}"
+        echo "Please review the security issues immediately."
+        echo "Run ID: ${{ github.run_id }}"
+        echo "Commit: ${{ github.sha }}"
+        
+        # In a real environment, you would send this to Slack, email, or other notification systems
+        # Example: curl -X POST -H 'Content-type: application/json' --data '{"text":"Security scan failed"}' $SLACK_WEBHOOK_URL

@@ -1,0 +1,212 @@
+# Security Policy Configuration for Kadai
+# This file defines security scanning rules, thresholds, and automated responses
+
+name: "Kadai Security Policy"
+version: "1.0.0"
+
+# Security scanning configuration
+security_scanning:
+  # SAST (Static Application Security Testing) settings
+  sast:
+    enabled: true
+    tools:
+      - codeql
+      - semgrep
+      - sonarqube
+    
+    # Severity thresholds that will fail the build
+    fail_on:
+      - critical
+      - high
+    
+    # Allow these severities but report them
+    warn_on:
+      - medium
+      - low
+    
+    # Custom rules configuration
+    rules:
+      # Enable all security-related rules
+      enable_security_rules: true
+      
+      # Specific rule categories to focus on
+      categories:
+        - injection
+        - xss
+        - authentication
+        - authorization
+        - cryptography
+        - secrets
+        - path_traversal
+        - deserialization
+        - xxe
+        - csrf
+
+  # Dependency scanning settings
+  dependency_scanning:
+    enabled: true
+    tools:
+      - snyk
+      - github_advisory
+    
+    # Vulnerability thresholds
+    fail_on:
+      - critical
+      - high
+    
+    warn_on:
+      - medium
+    
+    # Auto-fix settings
+    auto_fix:
+      enabled: true
+      severity_threshold: medium
+      create_pr: true
+
+  # Secret scanning settings
+  secret_scanning:
+    enabled: true
+    patterns:
+      - api_keys
+      - tokens
+      - passwords
+      - certificates
+      - connection_strings
+    
+    # Custom patterns for our application
+    custom_patterns:
+      - name: "JWT Secret"
+        pattern: "jwt[_-]?secret"
+        confidence: high
+      - name: "Database URL"
+        pattern: "DATABASE_URL"
+        confidence: medium
+      - name: "Redis Password"
+        pattern: "redis[_-]?password"
+        confidence: high
+
+# Quality gates configuration
+quality_gates:
+  # Code coverage requirements
+  coverage:
+    minimum_percentage: 80
+    fail_below_threshold: true
+    
+  # Code quality metrics
+  code_quality:
+    max_complexity: 15
+    max_lines_per_function: 50
+    max_duplicated_lines_percentage: 3
+    
+  # Security-specific gates
+  security:
+    max_vulnerabilities:
+      critical: 0
+      high: 0
+      medium: 5
+    
+    max_security_hotspots: 10
+    max_code_smells: 50
+
+# Automated responses configuration
+automated_responses:
+  # Actions to take when vulnerabilities are found
+  on_vulnerability_found:
+    - create_issue
+    - notify_security_team
+    - block_deployment
+    
+  # Actions for different severity levels
+  critical_vulnerabilities:
+    - immediate_notification
+    - block_all_deployments
+    - create_emergency_issue
+    
+  high_vulnerabilities:
+    - notification
+    - block_production_deployment
+    - create_high_priority_issue
+    
+  medium_vulnerabilities:
+    - notification
+    - create_issue
+    - allow_deployment_with_approval
+
+# Notification settings
+notifications:
+  # Teams/individuals to notify
+  security_team:
+    - security@kadai.com
+    - devops@kadai.com
+  
+  # Slack channels (if configured)
+  slack:
+    critical_channel: "#security-alerts"
+    general_channel: "#dev-notifications"
+  
+  # Email settings
+  email:
+    enabled: true
+    template: security_alert
+
+# Compliance and reporting
+compliance:
+  # Standards compliance checking
+  standards:
+    - owasp_top_10
+    - sans_top_25
+    - cwe_top_25
+  
+  # Reporting configuration
+  reports:
+    generate_weekly_report: true
+    generate_monthly_report: true
+    include_trends: true
+    export_formats:
+      - pdf
+      - json
+      - csv
+
+# Exception handling
+exceptions:
+  # Temporary exceptions for known issues
+  temporary_exceptions:
+    - rule_id: "js/hardcoded-credentials"
+      file_pattern: "**/test/**"
+      reason: "Test credentials are acceptable in test files"
+      expires: "2024-12-31"
+    
+    - rule_id: "py/sql-injection"
+      file_pattern: "**/migrations/**"
+      reason: "Database migrations contain SQL by design"
+      expires: "2024-12-31"
+  
+  # Permanent exceptions
+  permanent_exceptions:
+    - rule_id: "js/unused-parameter"
+      file_pattern: "**/*.d.ts"
+      reason: "Type definition files may have unused parameters"
+
+# Integration settings
+integrations:
+  # GitHub settings
+  github:
+    create_security_advisories: true
+    enable_dependabot: true
+    auto_merge_security_updates: false
+  
+  # JIRA integration (if configured)
+  jira:
+    enabled: false
+    project_key: "SEC"
+    issue_type: "Security Vulnerability"
+  
+  # SonarQube integration
+  sonarqube:
+    quality_gate_required: true
+    fail_on_quality_gate: true
+  
+  # Snyk integration
+  snyk:
+    monitor_dependencies: true
+    auto_remediation: true

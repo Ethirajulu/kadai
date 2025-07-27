@@ -1,0 +1,149 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.0
+
+# Language-specific settings
+language-settings:
+  javascript:
+    # Development dependencies are excluded from production scans
+    dev-dependency-scan: false
+    
+  python:
+    # Python specific settings for AI service
+    skip-unresolved: false
+
+# Patches for specific vulnerabilities (applied automatically)
+patches: {}
+
+# Vulnerability ignores - use sparingly and with good reason
+ignore:
+  # Example: Ignore prototype pollution in development dependencies
+  # SNYK-JS-LODASH-567746:
+  #   - '*':
+  #       reason: Development dependency only
+  #       expires: '2024-12-31T23:59:59.999Z'
+
+# Exclude paths from scanning
+exclude:
+  # Build and generated directories
+  - dist/**
+  - tmp/**
+  - coverage/**
+  - node_modules/**
+  - venv/**
+  - __pycache__/**
+  
+  # Generated code
+  - '**/generated/**'
+  - '**/*.min.js'
+  - '**/*.bundle.js'
+  - '**/*.d.ts'
+  
+  # Test files that might have intentional vulnerabilities
+  - '**/*.spec.ts'
+  - '**/*.test.ts'
+  - '**/test/**'
+  - '**/tests/**'
+
+# Custom severity settings
+severity-threshold: medium
+
+# Fail conditions
+fail-on:
+  - upgradable
+  - patchable
+
+# Organization settings (if using Snyk organization)
+org: kadai-security
+
+# Project settings
+project-name: kadai-ai-sales-assistant
+
+# License policy (check for license compliance)
+license-policy:
+  # Allowed licenses
+  allowed:
+    - MIT
+    - Apache-2.0
+    - BSD-2-Clause
+    - BSD-3-Clause
+    - ISC
+    - 0BSD
+    - CC0-1.0
+  
+  # Forbidden licenses
+  forbidden:
+    - GPL-2.0
+    - GPL-3.0
+    - AGPL-1.0
+    - AGPL-3.0
+    - LGPL-2.0
+    - LGPL-2.1
+    - LGPL-3.0
+  
+  # Licenses requiring review
+  review-required:
+    - Unlicense
+    - WTFPL
+    - CC-BY-SA-4.0
+
+# Container scanning settings (for Docker images)
+container:
+  # Base images to scan
+  images:
+    - node:22.16.0-alpine
+    - python:3.11-slim
+    - nginx:alpine
+    - postgres:15-alpine
+    - redis:7-alpine
+  
+  # Severity threshold for container vulnerabilities
+  severity-threshold: high
+  
+  # Exclude base image vulnerabilities that can't be fixed
+  exclude-base-image-vulns: false
+
+# Code analysis settings
+code:
+  # Enable code quality analysis
+  quality-analysis: true
+  
+  # Security rules to enable
+  rules:
+    - javascript
+    - typescript
+    - python
+    - docker
+    - terraform
+    - kubernetes
+  
+  # Custom rules path (if any)
+  custom-rules-path: .snyk/rules
+
+# Monitoring settings
+monitor:
+  # Auto-monitor on successful test
+  auto-monitor: true
+  
+  # Monitor frequency
+  frequency: daily
+  
+  # Enable notifications
+  notifications: true
+
+# Integration settings
+integrations:
+  # GitHub integration
+  github:
+    # Auto-create PRs for fixable vulnerabilities
+    auto-pr: true
+    
+    # PR labels
+    pr-labels:
+      - security
+      - snyk
+      - vulnerability
+  
+  # Slack notifications (if configured)
+  slack:
+    # Webhook URL should be set as environment variable
+    enabled: false

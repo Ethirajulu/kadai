@@ -102,6 +102,18 @@ export interface RateLimitConfig {
     lazyConnect?: boolean;
     retryDelayOnFailover?: number;
     maxRetriesPerRequest?: number;
+    // Connection pool configuration
+    poolSize?: number;
+    healthCheckInterval?: number;
+    enableOfflineQueue?: boolean;
+    // Circuit breaker configuration
+    circuitBreaker?: {
+      enabled?: boolean;
+      failureThreshold?: number;
+      recoveryTimeout?: number;
+      monitoringWindow?: number;
+      expectedFailureRate?: number;
+    };
   };
   defaultLimits: {
     anonymous: RateLimitRule;
