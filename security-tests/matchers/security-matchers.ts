@@ -55,7 +55,7 @@ export const securityMatchers = {
     } catch (error) {
       return {
         pass: false,
-        message: () => `JWT token has invalid payload: ${error.message}`,
+        message: () => `JWT token has invalid payload: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
   },

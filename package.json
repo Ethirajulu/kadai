@@ -36,7 +36,7 @@
     "security:audit": "pnpm audit",
     "security:audit:fix": "pnpm audit --fix",
     "lint:security": "eslint . --ext .ts,.js,.tsx,.jsx --config .eslintrc-security.js",
-    "test:security": "jest --testNamePattern=security --coverage"
+    "test:security": "jest --config jest.security.config.js"
   },
   "prisma": {
     "seed": "npx ts-node libs/database-config/src/postgresql/seed.ts"

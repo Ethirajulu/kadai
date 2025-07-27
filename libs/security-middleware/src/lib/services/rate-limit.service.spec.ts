@@ -1,9 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { RateLimitService } from './rate-limit.service';
-import { SecurityRequest, RateLimitConfig, RateLimitRule } from '../types/security.types';
+import { SecurityRequest, RateLimitConfig } from '../types/security.types';
 import { RedisConnectionPool } from '../utils/redis-connection-pool';
 import { CircuitBreakerState } from '../utils/redis-circuit-breaker';
+
+// Mock os module at the top level
+jest.mock('os', () => ({
+  loadavg: jest.fn(() => [2.0, 1.8, 1.5]),
+  cpus: jest.fn(() => new Array(4)),
+  totalmem: jest.fn(() => 8589934592), // 8GB
+  freemem: jest.fn(() => 3435973836),  // ~3.2GB free = ~60% used
+}));
 
 // Constants for test data consistency
 const TEST_CONSTANTS = {
@@ -32,19 +40,154 @@ const TEST_CONSTANTS = {
 jest.mock('../utils/redis-connection-pool');
 const MockedRedisConnectionPool = RedisConnectionPool as jest.MockedClass<typeof RedisConnectionPool>;
 
-describe('RateLimitService', () => {
-  let service: RateLimitService;
-  let mockConnectionPool: jest.Mocked<RedisConnectionPool>;
+// Helper function to create SecurityRequest mock
+const createMockSecurityRequest = (overrides: Partial<SecurityRequest> = {}): SecurityRequest => {
+  const defaultConnection = { remoteAddress: TEST_CONSTANTS.IP_ADDRESS } as any;
+  const defaultSocket = { 
+    remoteAddress: TEST_CONSTANTS.IP_ADDRESS,
+    destroySoon: jest.fn(),
+    write: jest.fn(),
+    connect: jest.fn(),
+    setEncoding: jest.fn(),
+    end: jest.fn(),
+    destroy: jest.fn(),
+    pause: jest.fn(),
+    resume: jest.fn(),
+    setTimeout: jest.fn(),
+    setNoDelay: jest.fn(),
+    setKeepAlive: jest.fn(),
+    address: jest.fn(),
+    unref: jest.fn(),
+    ref: jest.fn(),
+    readable: true,
+    writable: true,
+    destroyed: false,
+    pending: false,
+    connecting: false,
+    readyState: 'open',
+    localAddress: '127.0.0.1',
+    localPort: 3000,
+    remotePort: 80,
+    remoteFamily: 'IPv4',
+    bytesRead: 0,
+    bytesWritten: 0,
+    // Add EventEmitter methods
+    addListener: jest.fn(),
+    on: jest.fn(),
+    once: jest.fn(),
+    removeListener: jest.fn(),
+    off: jest.fn(),
+    removeAllListeners: jest.fn(),
+    setMaxListeners: jest.fn(),
+    getMaxListeners: jest.fn(),
+    listeners: jest.fn(),
+    rawListeners: jest.fn(),
+    emit: jest.fn(),
+    listenerCount: jest.fn(),
+    prependListener: jest.fn(),
+    prependOnceListener: jest.fn(),
+    eventNames: jest.fn(),
+    // Add Stream methods
+    _read: jest.fn(),
+    read: jest.fn(),
+    push: jest.fn(),
+    unshift: jest.fn(),
+    wrap: jest.fn(),
+    pipe: jest.fn(),
+    unpipe: jest.fn(),
+    _write: jest.fn(),
+    _writev: jest.fn(),
+    cork: jest.fn(),
+    uncork: jest.fn(),
+    _flush: jest.fn(),
+    _final: jest.fn(),
+    _destroy: jest.fn(),
+    _undestroy: jest.fn(),
+  } as any;
 
-  const mockRequest: SecurityRequest = {
+  return {
     ip: TEST_CONSTANTS.IP_ADDRESS,
     headers: { 'user-agent': TEST_CONSTANTS.USER_AGENT },
     user: undefined,
     path: TEST_CONSTANTS.PATH,
     method: TEST_CONSTANTS.METHOD,
-    connection: { remoteAddress: TEST_CONSTANTS.IP_ADDRESS },
-    socket: { remoteAddress: TEST_CONSTANTS.IP_ADDRESS },
+    connection: defaultConnection,
+    socket: defaultSocket,
+    url: TEST_CONSTANTS.PATH,
+    originalUrl: TEST_CONSTANTS.PATH,
+    body: {},
+    params: {},
+    query: {},
+    cookies: {},
+    get: jest.fn(),
+    header: jest.fn(),
+    accepts: jest.fn(),
+    acceptsCharsets: jest.fn(),
+    acceptsEncodings: jest.fn(),
+    acceptsLanguages: jest.fn(),
+    range: jest.fn(),
+    param: jest.fn(),
+    is: jest.fn(),
+    xhr: false,
+    protocol: 'http',
+    secure: false,
+    fresh: false,
+    stale: true,
+    subdomains: [],
+    route: {},
+    baseUrl: '',
+    hostname: 'localhost',
+    // Add minimal stream properties for Request interface
+    readable: true,
+    readableEnded: false,
+    readableFlowing: null,
+    readableHighWaterMark: 16384,
+    readableLength: 0,
+    readableObjectMode: false,
+    destroyed: false,
+    _read: jest.fn(),
+    read: jest.fn(),
+    setEncoding: jest.fn(),
+    pause: jest.fn(),
+    resume: jest.fn(),
+    isPaused: jest.fn(),
+    unpipe: jest.fn(),
+    unshift: jest.fn(),
+    wrap: jest.fn(),
+    push: jest.fn(),
+    _destroy: jest.fn(),
+    destroy: jest.fn(),
+    _undestroy: jest.fn(),
+    pipe: jest.fn(),
+    addListener: jest.fn(),
+    on: jest.fn(),
+    once: jest.fn(),
+    removeListener: jest.fn(),
+    off: jest.fn(),
+    removeAllListeners: jest.fn(),
+    setMaxListeners: jest.fn(),
+    getMaxListeners: jest.fn(),
+    listeners: jest.fn(),
+    rawListeners: jest.fn(),
+    emit: jest.fn(),
+    listenerCount: jest.fn(),
+    prependListener: jest.fn(),
+    prependOnceListener: jest.fn(),
+    eventNames: jest.fn(),
+    setTimeout: jest.fn(),
+    // Additional Express Request properties
+    app: {} as any,
+    res: {} as any,
+    next: {} as any,
+    ...overrides,
   } as SecurityRequest;
+};
+
+describe('RateLimitService', () => {
+  let service: RateLimitService;
+  let mockConnectionPool: jest.Mocked<RedisConnectionPool>;
+
+  const mockRequest: SecurityRequest = createMockSecurityRequest();
 
   const mockConfig: RateLimitConfig = {
     enabled: true,
@@ -246,16 +389,18 @@ describe('RateLimitService', () => {
     });
 
     it('should allow whitelisted requests', async () => {
-      const whitelistedRequest = {
-        ...mockRequest,
+      const whitelistedRequest = createMockSecurityRequest({
         ip: TEST_CONSTANTS.WHITELISTED_IP,
-      };
+        connection: { remoteAddress: TEST_CONSTANTS.WHITELISTED_IP } as any,
+        socket: { ...createMockSecurityRequest().socket, remoteAddress: TEST_CONSTANTS.WHITELISTED_IP } as any,
+      });
 
       const result = await service.checkRateLimit({
         request: whitelistedRequest,
         isAuthenticated: false,
       });
 
+      expect(result).toBeDefined();
       expect(result.allowed).toBe(true);
       expect(result.remaining).toBe(Number.MAX_SAFE_INTEGER);
     });
@@ -282,17 +427,12 @@ describe('RateLimitService', () => {
     });
 
     it('should handle Redis unavailability with graceful degradation', async () => {
-      mockConnectionPool.execute.mockImplementation((operation, fallback) => {
-        if (fallback) {
-          return fallback();
-        }
-        throw new Error('Redis connection failed');
-      });
+      mockConnectionPool.execute.mockRejectedValue(new Error('Redis connection failed'));
 
       mockConnectionPool.getPoolHealth.mockReturnValue({
         totalConnections: 3,
         healthyConnections: 0,
-        circuitBreakerState: 'OPEN',
+        circuitBreakerState: CircuitBreakerState.OPEN,
         connections: [],
       });
 
@@ -302,15 +442,15 @@ describe('RateLimitService', () => {
       });
 
       expect(result.allowed).toBe(true);
-      expect(result.error).toContain('Redis connection failed');
+      expect(result.error).toContain('Service degraded: Redis connection failed');
     });
 
     it('should use fallback when circuit breaker is open', async () => {
       mockConnectionPool.execute.mockImplementation((operation, fallback) => {
         if (fallback) {
-          return fallback();
+          return Promise.resolve(fallback());
         }
-        throw new Error('Circuit breaker open');
+        return Promise.reject(new Error('Circuit breaker open'));
       });
 
       const result = await service.checkRateLimit({
@@ -400,9 +540,12 @@ describe('RateLimitService', () => {
     });
 
     it('should apply adaptive limiting under high system load', async () => {
-      // Mock high CPU usage
-      jest.spyOn(require('os'), 'loadavg').mockReturnValue([8.0, 7.0, 6.0]);
-      jest.spyOn(require('os'), 'cpus').mockReturnValue(new Array(4));
+      // Configure mocks for high system load (above thresholds)
+      const os = require('os');
+      os.loadavg.mockReturnValue([8.0, 7.0, 6.0]);  // 200% CPU load (above 80% threshold)
+      os.cpus.mockReturnValue(new Array(4));         // 4 cores
+      os.totalmem.mockReturnValue(8589934592);       // 8GB total
+      os.freemem.mockReturnValue(429496729);         // ~0.4GB free = 95% used (above 85% threshold)
 
       mockConnectionPool.execute.mockResolvedValue({
         allowed: false,
@@ -422,17 +565,18 @@ describe('RateLimitService', () => {
     });
 
     it('should not apply adaptive limiting under normal system load', async () => {
-      // Mock normal CPU usage
-      jest.spyOn(require('os'), 'loadavg').mockReturnValue([2.0, 1.8, 1.5]);
-      jest.spyOn(require('os'), 'cpus').mockReturnValue(new Array(4));
+      // Configure mocks for normal system load (below thresholds)
+      const os = require('os');
+      os.loadavg.mockReturnValue([2.0, 1.8, 1.5]);  // 50% CPU load (below 80% threshold)
+      os.cpus.mockReturnValue(new Array(4));         // 4 cores  
+      os.totalmem.mockReturnValue(8589934592);       // 8GB total
+      os.freemem.mockReturnValue(3435973836);        // ~3.2GB free = 60% used (below 85% threshold)
 
-      mockConnectionPool.execute.mockImplementation(() => {
-        return Promise.resolve({
-          allowed: true,
-          remaining: 50,
-          resetTime: Date.now() + 300000,
-          totalHits: 50,
-        });
+      mockConnectionPool.execute.mockResolvedValue({
+        allowed: true,
+        remaining: 50,
+        resetTime: Date.now() + 300000,
+        totalHits: 50,
       });
 
       const result = await service.checkRateLimit({
@@ -527,9 +671,9 @@ describe('RateLimitService', () => {
     it('should return default status when Redis is unavailable', async () => {
       mockConnectionPool.execute.mockImplementation((operation, fallback) => {
         if (fallback) {
-          return fallback();
+          return Promise.resolve(fallback());
         }
-        throw new Error('Redis unavailable');
+        return Promise.reject(new Error('Redis unavailable'));
       });
 
       const status = await service.getRateLimitStatus({
@@ -549,10 +693,9 @@ describe('RateLimitService', () => {
     });
 
     it('should generate user-based key for authenticated requests', () => {
-      const authenticatedRequest = {
-        ...mockRequest,
-        user: { id: TEST_CONSTANTS.USER_ID },
-      };
+      const authenticatedRequest = createMockSecurityRequest({
+        user: { id: TEST_CONSTANTS.USER_ID, role: 'user' },
+      });
 
       const key = service.createRateLimitKey({
         request: authenticatedRequest,
@@ -590,22 +733,20 @@ describe('RateLimitService', () => {
     });
 
     it('should whitelist by IP address', () => {
-      const whitelistedRequest = {
-        ...mockRequest,
+      const whitelistedRequest = createMockSecurityRequest({
         ip: TEST_CONSTANTS.WHITELISTED_IP,
-        connection: { remoteAddress: TEST_CONSTANTS.WHITELISTED_IP },
-        socket: { remoteAddress: TEST_CONSTANTS.WHITELISTED_IP },
-      };
+        connection: { remoteAddress: TEST_CONSTANTS.WHITELISTED_IP } as any,
+        socket: { ...createMockSecurityRequest().socket, remoteAddress: TEST_CONSTANTS.WHITELISTED_IP } as any,
+      });
 
       const isWhitelisted = service.isWhitelisted(whitelistedRequest);
       expect(isWhitelisted).toBe(true);
     });
 
     it('should whitelist by path', () => {
-      const healthRequest = {
-        ...mockRequest,
+      const healthRequest = createMockSecurityRequest({
         path: TEST_CONSTANTS.HEALTH_PATH,
-      };
+      });
 
       const isWhitelisted = service.isWhitelisted(healthRequest);
       expect(isWhitelisted).toBe(true);
@@ -624,8 +765,9 @@ describe('RateLimitService', () => {
     });
 
     it('should handle system load detection errors', async () => {
-      // Mock os module to throw error
-      jest.spyOn(require('os'), 'loadavg').mockImplementation(() => {
+      // Configure mocks to throw error during system load detection
+      const os = require('os');
+      os.loadavg.mockImplementation(() => {
         throw new Error('System load unavailable');
       });
 
@@ -647,17 +789,12 @@ describe('RateLimitService', () => {
     });
 
     it('should handle Redis validation errors gracefully', async () => {
-      mockConnectionPool.execute.mockImplementation((operation, fallback) => {
-        if (fallback) {
-          return fallback();
-        }
-        throw new Error('Invalid Redis response format');
-      });
+      mockConnectionPool.execute.mockRejectedValue(new Error('Invalid Redis response format'));
 
       mockConnectionPool.getPoolHealth.mockReturnValue({
         totalConnections: 3,
         healthyConnections: 0,
-        circuitBreakerState: 'OPEN',
+        circuitBreakerState: CircuitBreakerState.OPEN,
         connections: [],
       });
 
@@ -667,7 +804,7 @@ describe('RateLimitService', () => {
       });
 
       expect(result.allowed).toBe(true);
-      expect(result.error).toContain('Invalid Redis response format');
+      expect(result.error).toContain('Service degraded: Invalid Redis response format');
     });
   });
 });

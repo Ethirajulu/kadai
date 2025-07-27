@@ -5,8 +5,8 @@ module.exports = {
   
   // Test match patterns for security tests
   testMatch: [
-    '<rootDir>/libs/security-middleware/**/*.security.spec.ts',
-    '<rootDir>/libs/auth-service/**/*.security.spec.ts',
+    '<rootDir>/libs/security-middleware/**/*.spec.ts',
+    '<rootDir>/libs/auth-service/**/*.spec.ts',
     '<rootDir>/apps/**/security/**/*.spec.ts',
     '<rootDir>/**/*.security.test.ts',
     '<rootDir>/security-tests/**/*.spec.ts',
@@ -116,6 +116,14 @@ module.exports = {
   
   // Cache
   cache: false, // Disable cache for security tests to ensure fresh runs
+  
+  // Module path ignore patterns
+  modulePathIgnorePatterns: [
+    '<rootDir>/dist/',
+    '<rootDir>/tmp/',
+    '<rootDir>/coverage/',
+    '<rootDir>/.nx/',
+  ],
   
   // Max workers (limit for security tests)
   maxWorkers: 2,

@@ -62,7 +62,7 @@ describe('JWTService', () => {
       disconnect: jest.fn(),
       ttl: jest.fn(),
       scanStream: jest.fn(),
-    };
+    } as jest.Mocked<Partial<Redis>>;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -80,7 +80,7 @@ describe('JWTService', () => {
 
     service = module.get<JWTService>(JWTService);
     jwtService = module.get(JwtService);
-    redis = mockRedis;
+    redis = mockRedis as jest.Mocked<Redis>;
     
     // Mock Redis initialization
     service['redis'] = redis as any;

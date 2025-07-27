@@ -28,21 +28,149 @@ const TEST_CONSTANTS = {
 } as const;
 
 // Mock request object
-const createMockRequest = (overrides: Partial<JWTAuthRequest> = {}): JWTAuthRequest => ({
-  headers: {
-    authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
-  },
-  ip: TEST_CONSTANTS.IP_ADDRESS,
-  get: jest.fn().mockImplementation((header: string) => {
-    if (header === 'User-Agent') return TEST_CONSTANTS.USER_AGENT;
-    return undefined;
-  }),
-  connection: { remoteAddress: TEST_CONSTANTS.IP_ADDRESS },
-  socket: { remoteAddress: TEST_CONSTANTS.IP_ADDRESS },
-  url: '/api/test',
-  method: 'GET',
-  ...overrides,
-} as JWTAuthRequest);
+const createMockRequest = (overrides: Partial<JWTAuthRequest> = {}): JWTAuthRequest => {
+  const defaultSocket = {
+    remoteAddress: TEST_CONSTANTS.IP_ADDRESS,
+    destroySoon: jest.fn(),
+    write: jest.fn(),
+    connect: jest.fn(),
+    setEncoding: jest.fn(),
+    end: jest.fn(),
+    destroy: jest.fn(),
+    pause: jest.fn(),
+    resume: jest.fn(),
+    setTimeout: jest.fn(),
+    setNoDelay: jest.fn(),
+    setKeepAlive: jest.fn(),
+    address: jest.fn(),
+    unref: jest.fn(),
+    ref: jest.fn(),
+    readable: true,
+    writable: true,
+    destroyed: false,
+    pending: false,
+    connecting: false,
+    readyState: 'open',
+    localAddress: '127.0.0.1',
+    localPort: 3000,
+    remotePort: 80,
+    remoteFamily: 'IPv4',
+    bytesRead: 0,
+    bytesWritten: 0,
+    // Add EventEmitter and Stream methods
+    addListener: jest.fn(),
+    on: jest.fn(),
+    once: jest.fn(),
+    removeListener: jest.fn(),
+    off: jest.fn(),
+    removeAllListeners: jest.fn(),
+    setMaxListeners: jest.fn(),
+    getMaxListeners: jest.fn(),
+    listeners: jest.fn(),
+    rawListeners: jest.fn(),
+    emit: jest.fn(),
+    listenerCount: jest.fn(),
+    prependListener: jest.fn(),
+    prependOnceListener: jest.fn(),
+    eventNames: jest.fn(),
+    _read: jest.fn(),
+    read: jest.fn(),
+    push: jest.fn(),
+    unshift: jest.fn(),
+    wrap: jest.fn(),
+    pipe: jest.fn(),
+    unpipe: jest.fn(),
+    _write: jest.fn(),
+    _writev: jest.fn(),
+    cork: jest.fn(),
+    uncork: jest.fn(),
+    _flush: jest.fn(),
+    _final: jest.fn(),
+    _destroy: jest.fn(),
+    _undestroy: jest.fn(),
+  } as any;
+
+  return {
+    headers: {
+      authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
+    },
+    ip: TEST_CONSTANTS.IP_ADDRESS,
+    get: jest.fn().mockImplementation((header: string) => {
+      if (header === 'User-Agent') return TEST_CONSTANTS.USER_AGENT;
+      return undefined;
+    }),
+    header: jest.fn(),
+    connection: { remoteAddress: TEST_CONSTANTS.IP_ADDRESS } as any,
+    socket: defaultSocket,
+    url: '/api/test',
+    originalUrl: '/api/test',
+    method: 'GET',
+    path: '/api/test',
+    body: {},
+    params: {},
+    query: {},
+    cookies: {},
+    accepts: jest.fn(),
+    acceptsCharsets: jest.fn(),
+    acceptsEncodings: jest.fn(),
+    acceptsLanguages: jest.fn(),
+    range: jest.fn(),
+    param: jest.fn(),
+    is: jest.fn(),
+    xhr: false,
+    protocol: 'http',
+    secure: false,
+    fresh: false,
+    stale: true,
+    subdomains: [],
+    route: {},
+    baseUrl: '',
+    hostname: 'localhost',
+    // Add minimal stream properties for Request interface
+    readable: true,
+    readableEnded: false,
+    readableFlowing: null,
+    readableHighWaterMark: 16384,
+    readableLength: 0,
+    readableObjectMode: false,
+    destroyed: false,
+    _read: jest.fn(),
+    read: jest.fn(),
+    setEncoding: jest.fn(),
+    pause: jest.fn(),
+    resume: jest.fn(),
+    isPaused: jest.fn(),
+    unpipe: jest.fn(),
+    unshift: jest.fn(),
+    wrap: jest.fn(),
+    push: jest.fn(),
+    _destroy: jest.fn(),
+    destroy: jest.fn(),
+    _undestroy: jest.fn(),
+    pipe: jest.fn(),
+    addListener: jest.fn(),
+    on: jest.fn(),
+    once: jest.fn(),
+    removeListener: jest.fn(),
+    off: jest.fn(),
+    removeAllListeners: jest.fn(),
+    setMaxListeners: jest.fn(),
+    getMaxListeners: jest.fn(),
+    listeners: jest.fn(),
+    rawListeners: jest.fn(),
+    emit: jest.fn(),
+    listenerCount: jest.fn(),
+    prependListener: jest.fn(),
+    prependOnceListener: jest.fn(),
+    eventNames: jest.fn(),
+    setTimeout: jest.fn(),
+    // Additional Express Request properties
+    app: {} as any,
+    res: {} as any,
+    next: {} as any,
+    ...overrides,
+  } as JWTAuthRequest;
+};
 
 // Mock response object
 const createMockResponse = (): Partial<Response> => ({
@@ -138,6 +266,8 @@ describe('TokenRefreshMiddleware', () => {
       extractTokenFromRequest: jest.fn(),
       isTokenNearExpiration: jest.fn(),
       decodeToken: jest.fn(),
+      validateRefreshToken: jest.fn(),
+      logout: jest.fn(),
     };
 
     const mockConfigService = {
@@ -833,11 +963,13 @@ describe('TokenRefreshMiddleware', () => {
       const next = createMockNext();
       
       const mockPayloadWithoutSub = createMockTokenPayload();
-      delete mockPayloadWithoutSub.sub;
+      // Create payload without sub by omitting it during creation
+      const { sub, ...payloadWithoutSub } = mockPayloadWithoutSub;
+      const finalPayload = payloadWithoutSub as Partial<JWTTokenPayload>;
 
       jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
       jwtService.isTokenNearExpiration.mockReturnValue(true);
-      jwtService.decodeToken.mockReturnValue(mockPayloadWithoutSub);
+      jwtService.decodeToken.mockReturnValue(finalPayload as JWTTokenPayload);
 
       // Act
       await middleware.use(request, response as Response, next);
@@ -987,10 +1119,8 @@ describe('TokenRefreshMiddleware', () => {
         tokenType: 'Bearer' as const,
       };
 
-      // Mock the validateRefreshToken method if it exists
-      if (jwtService.validateRefreshToken) {
-        jwtService.validateRefreshToken.mockResolvedValue(mockRefreshPayload);
-      }
+      // Mock the validateRefreshToken method
+      jwtService.validateRefreshToken.mockResolvedValue(mockRefreshPayload);
       jwtService.refreshTokens.mockResolvedValue(newTokens);
 
       // Act
@@ -1032,10 +1162,8 @@ describe('TokenRefreshMiddleware', () => {
       const response = createMockResponse();
       const next = createMockNext();
 
-      // Mock the validateRefreshToken method if it exists
-      if (jwtService.validateRefreshToken) {
-        jwtService.validateRefreshToken.mockRejectedValue(new Error('Invalid refresh token'));
-      }
+      // Mock the validateRefreshToken method
+      jwtService.validateRefreshToken.mockRejectedValue(new Error('Invalid refresh token'));
 
       // Act
       await refreshEndpointMiddleware.use(request, response as Response, next);
@@ -1071,10 +1199,8 @@ describe('TokenRefreshMiddleware', () => {
       const next = createMockNext();
 
       jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
-      // Mock logout method if it exists
-      if (jwtService.logout) {
-        jwtService.logout.mockResolvedValue(undefined);
-      }
+      // Mock logout method
+      jwtService.logout.mockResolvedValue(undefined);
 
       // Act
       await logoutMiddleware.use(request, response as Response, next);
@@ -1101,10 +1227,8 @@ describe('TokenRefreshMiddleware', () => {
       const next = createMockNext();
 
       jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
-      // Mock logout method if it exists
-      if (jwtService.logout) {
-        jwtService.logout.mockResolvedValue(undefined);
-      }
+      // Mock logout method
+      jwtService.logout.mockResolvedValue(undefined);
 
       // Act
       await logoutMiddleware.use(request, response as Response, next);
@@ -1131,10 +1255,8 @@ describe('TokenRefreshMiddleware', () => {
       const next = createMockNext();
 
       jwtService.extractTokenFromRequest.mockReturnValue(null);
-      // Mock logout method if it exists
-      if (jwtService.logout) {
-        jwtService.logout.mockResolvedValue(undefined);
-      }
+      // Mock logout method
+      jwtService.logout.mockResolvedValue(undefined);
 
       // Act
       await logoutMiddleware.use(request, response as Response, next);
@@ -1157,10 +1279,8 @@ describe('TokenRefreshMiddleware', () => {
       const next = createMockNext();
 
       jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
-      // Mock logout method if it exists
-      if (jwtService.logout) {
-        jwtService.logout.mockRejectedValue(new Error('Logout failed'));
-      }
+      // Mock logout method
+      jwtService.logout.mockRejectedValue(new Error('Logout failed'));
 
       // Act
       await logoutMiddleware.use(request, response as Response, next);

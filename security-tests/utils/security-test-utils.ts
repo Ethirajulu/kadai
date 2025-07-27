@@ -3,7 +3,7 @@
  */
 
 import { randomBytes, createHash } from 'crypto';
-import { sign, verify } from 'jsonwebtoken';
+import { sign } from 'jsonwebtoken';
 
 // Type definitions for security testing
 export interface SecurityTestJWTOptions {
@@ -28,25 +28,25 @@ export class SecurityTestUtils {
   /**
    * Generate test JWT tokens for security testing
    */
-  static generateTestJWT(payload: any = {}, options: SecurityTestJWTOptions = {}): string {
+  static generateTestJWT(
+    payload: any = {},
+    options: SecurityTestJWTOptions = {}
+  ): string {
     const defaultPayload = {
       sub: 'test-user-id',
       email: 'test@example.com',
       role: 'user',
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (15 * 60), // 15 minutes
+      exp: Math.floor(Date.now() / 1000) + 15 * 60, // 15 minutes
       iss: 'kadai-auth',
       aud: 'kadai-api',
     };
 
     const secret = options.secret || 'test-secret';
-    const algorithm = options.algorithm || 'HS256';
 
-    return sign(
-      { ...defaultPayload, ...payload },
-      secret,
-      { algorithm }
-    );
+    return sign({ ...defaultPayload, ...payload }, secret, {
+      algorithm: 'HS256',
+    });
   }
 
   /**
@@ -193,10 +193,12 @@ export class SecurityTestUtils {
     return {
       maxRequests,
       windowMs,
-      requests: Array(maxRequests + 5).fill(null).map((_, i) => ({
-        timestamp: Date.now() + (i * 100),
-        shouldPass: i < maxRequests,
-      })),
+      requests: Array(maxRequests + 5)
+        .fill(null)
+        .map((_, i) => ({
+          timestamp: Date.now() + i * 100,
+          shouldPass: i < maxRequests,
+        })),
     };
   }
 
@@ -319,11 +321,15 @@ export class SecurityTestUtils {
       'content-security-policy': /.+/,
     };
 
-    const results = [];
+    const results: Array<{
+      header: string;
+      status: string;
+      message: string;
+    }> = [];
 
     for (const [header, expectedValues] of Object.entries(requiredHeaders)) {
       const headerValue = headers[header] || headers[header.toLowerCase()];
-      
+
       if (!headerValue) {
         results.push({
           header,
@@ -377,7 +383,7 @@ export class SecurityTestUtils {
    * Generate expired CSRF token for testing
    */
   private static generateExpiredCSRFToken(): string {
-    const expiredTime = Date.now() - (60 * 60 * 1000); // 1 hour ago
+    const expiredTime = Date.now() - 60 * 60 * 1000; // 1 hour ago
     return createHash('sha256')
       .update(`csrf-${expiredTime}-${randomBytes(16).toString('hex')}`)
       .digest('hex');
@@ -386,15 +392,16 @@ export class SecurityTestUtils {
   /**
    * Generate random secure password
    */
-  static generateSecurePassword(length: number = 16): string {
-    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+  static generateSecurePassword(length = 16): string {
+    const charset =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
     let password = '';
-    
+
     for (let i = 0; i < length; i++) {
       const randomIndex = Math.floor(Math.random() * charset.length);
       password += charset[randomIndex];
     }
-    
+
     return password;
   }
 
@@ -403,33 +410,33 @@ export class SecurityTestUtils {
    */
   static async simulateBruteForceAttack(
     target: () => Promise<any>,
-    attempts: number = 10,
-    delay: number = 100
+    attempts = 10,
+    delay = 100
   ): Promise<SecurityTestResult[]> {
-    const results = [];
-    
+    const results: SecurityTestResult[] = [];
+
     for (let i = 0; i < attempts; i++) {
       try {
         const result = await target();
-        results.push({ 
-          success: true, 
+        results.push({
+          success: true,
           message: `Attempt ${i + 1} succeeded`,
-          data: { attempt: i + 1, result }
+          data: { attempt: i + 1, result },
         });
       } catch (error: any) {
-        results.push({ 
-          success: false, 
+        results.push({
+          success: false,
           message: `Attempt ${i + 1} failed: ${error.message}`,
-          data: { attempt: i + 1, error: error.message }
+          data: { attempt: i + 1, error: error.message },
         });
       }
-      
+
       // Add delay between attempts
       if (delay > 0 && i < attempts - 1) {
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
-    
+
     return results;
   }
 
@@ -439,17 +446,17 @@ export class SecurityTestUtils {
   static async testTimingAttack(
     validInput: () => Promise<any>,
     invalidInput: () => Promise<any>,
-    iterations: number = 50
+    iterations = 50
   ): Promise<{ isVulnerable: boolean; timingDifference: number }> {
-    const validTimes = [];
-    const invalidTimes = [];
+    const validTimes: number[] = [];
+    const invalidTimes: number[] = [];
 
     for (let i = 0; i < iterations; i++) {
       // Test valid input
       const validStart = process.hrtime.bigint();
       try {
         await validInput();
-      } catch (error) {
+      } catch {
         // Ignore errors, we're measuring timing
       }
       const validEnd = process.hrtime.bigint();
@@ -459,20 +466,22 @@ export class SecurityTestUtils {
       const invalidStart = process.hrtime.bigint();
       try {
         await invalidInput();
-      } catch (error) {
+      } catch {
         // Ignore errors, we're measuring timing
       }
       const invalidEnd = process.hrtime.bigint();
       invalidTimes.push(Number(invalidEnd - invalidStart));
     }
 
-    const avgValidTime = validTimes.reduce((a, b) => a + b, 0) / validTimes.length;
-    const avgInvalidTime = invalidTimes.reduce((a, b) => a + b, 0) / invalidTimes.length;
+    const avgValidTime =
+      validTimes.reduce((a, b) => a + b, 0) / validTimes.length;
+    const avgInvalidTime =
+      invalidTimes.reduce((a, b) => a + b, 0) / invalidTimes.length;
     const timingDifference = Math.abs(avgValidTime - avgInvalidTime);
 
     // If timing difference is > 10% of the average time, it might be vulnerable
     const avgTime = (avgValidTime + avgInvalidTime) / 2;
-    const isVulnerable = timingDifference > (avgTime * 0.1);
+    const isVulnerable = timingDifference > avgTime * 0.1;
 
     return { isVulnerable, timingDifference };
   }

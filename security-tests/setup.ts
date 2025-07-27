@@ -15,16 +15,18 @@ beforeAll(async () => {
   // Set test environment variables for security tests
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'test-jwt-secret-for-security-tests-only';
-  process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-for-security-tests-only';
+  process.env.JWT_REFRESH_SECRET =
+    'test-refresh-secret-for-security-tests-only';
   process.env.REDIS_URL = 'redis://localhost:6379/15'; // Use test database
-  process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/kadai_test_security';
-  
+  process.env.DATABASE_URL =
+    'postgresql://test:test@localhost:5432/kadai_test_security';
+
   // Security test specific configurations
   process.env.SECURITY_TEST_MODE = 'true';
   process.env.RATE_LIMIT_DISABLED = 'false'; // Keep rate limiting enabled for security tests
   process.env.CORS_DISABLED = 'false'; // Keep CORS enabled for security tests
   process.env.HELMET_DISABLED = 'false'; // Keep helmet enabled for security tests
-  
+
   console.log('🔒 Security test environment initialized');
 });
 
@@ -45,7 +47,10 @@ process.on('uncaughtException', (error) => {
 });
 
 // Security test helper functions
-global.createSecurityTestModule = async (providers: any[] = [], imports: any[] = []) => {
+global.createSecurityTestModule = async (
+  providers: any[] = [],
+  imports: any[] = []
+) => {
   const moduleBuilder = Test.createTestingModule({
     imports: [
       // Add common security modules
@@ -57,7 +62,7 @@ global.createSecurityTestModule = async (providers: any[] = [], imports: any[] =
         provide: ConfigService,
         useValue: {
           get: jest.fn((key: string) => {
-            const config = {
+            const config: Record<string, any> = {
               'security.jwt.secret': 'test-jwt-secret',
               'security.jwt.refreshSecret': 'test-refresh-secret',
               'security.jwt.expiresIn': '15m',
@@ -87,7 +92,7 @@ global.createMockSecurityRequest = (overrides: any = {}) => {
     headers: {
       'user-agent': 'test-agent',
       'x-forwarded-for': '127.0.0.1',
-      'authorization': 'Bearer test-token',
+      authorization: 'Bearer test-token',
       ...overrides.headers,
     },
     ip: '127.0.0.1',
@@ -142,8 +147,10 @@ global.createMockJWTPayload = (overrides: any = {}) => {
 
 // Security test constants
 global.SECURITY_TEST_CONSTANTS = {
-  VALID_JWT_TOKEN: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlIjoidXNlciIsImlhdCI6MTUxNjIzOTAyMn0.test',
-  EXPIRED_JWT_TOKEN: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlIjoidXNlciIsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNTE2MjM5MDIyfQ.expired',
+  VALID_JWT_TOKEN:
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlIjoidXNlciIsImlhdCI6MTUxNjIzOTAyMn0.test',
+  EXPIRED_JWT_TOKEN:
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlIjoidXNlciIsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNTE2MjM5MDIyfQ.expired',
   MALFORMED_JWT_TOKEN: 'invalid.jwt.token',
   MALICIOUS_PAYLOADS: {
     XSS: '<script>alert("xss")</script>',
@@ -165,16 +172,13 @@ global.SECURITY_TEST_CONSTANTS = {
       'strict-transport-security',
       'content-security-policy',
     ],
-    FORBIDDEN: [
-      'x-powered-by',
-      'server',
-    ],
+    FORBIDDEN: ['x-powered-by', 'server'],
   },
 };
 
 // Security test utilities
-global.waitForRateLimit = (ms: number = 1000) => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+global.waitForRateLimit = (ms = 1000) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
 global.generateMaliciousPayload = (type: string) => {
@@ -185,16 +189,18 @@ global.SecurityTestUtils = SecurityTestUtils;
 
 global.assertSecurityHeaders = (response: any) => {
   const headers = response.headers || {};
-  
+
   // Check required security headers
-  global.SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.REQUIRED.forEach(header => {
+  global.SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.REQUIRED.forEach((header) => {
     expect(headers[header]).toBeDefined();
   });
-  
+
   // Check forbidden headers are not present
-  global.SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.FORBIDDEN.forEach(header => {
-    expect(headers[header]).toBeUndefined();
-  });
+  global.SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.FORBIDDEN.forEach(
+    (header) => {
+      expect(headers[header]).toBeUndefined();
+    }
+  );
 };
 
 // Add security-specific Jest matchers
@@ -206,29 +212,33 @@ expect.extend({
       pass,
     };
   },
-  
+
   toHaveSecurityHeaders(received) {
     const headers = received.headers || {};
-    const requiredHeaders = global.SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.REQUIRED;
-    const hasAllHeaders = requiredHeaders.every(header => headers[header]);
-    
+    const requiredHeaders =
+      global.SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.REQUIRED;
+    const hasAllHeaders = requiredHeaders.every((header) => headers[header]);
+
     return {
-      message: () => `expected response to have security headers: ${requiredHeaders.join(', ')}`,
+      message: () =>
+        `expected response to have security headers: ${requiredHeaders.join(
+          ', '
+        )}`,
       pass: hasAllHeaders,
     };
   },
-  
+
   toBeValidJWT(received) {
     // Simple JWT validation for tests
     const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/;
     const pass = typeof received === 'string' && jwtPattern.test(received);
-    
+
     return {
       message: () => `expected ${received} to be a valid JWT token`,
       pass,
     };
   },
-  
+
   toBeRateLimited(received) {
     const pass = received && received.status === 429;
     return {
@@ -242,16 +252,33 @@ console.log('🔒 Security test setup completed');
 
 // Export types for TypeScript
 declare global {
-  var createSecurityTestModule: (providers?: any[], imports?: any[]) => Promise<TestingModule>;
+  var createSecurityTestModule: (
+    providers?: any[],
+    imports?: any[]
+  ) => Promise<TestingModule>;
   var createMockSecurityRequest: (overrides?: any) => any;
   var createMockSecurityResponse: (overrides?: any) => any;
   var createMockJWTPayload: (overrides?: any) => any;
-  var SECURITY_TEST_CONSTANTS: any;
+  var SECURITY_TEST_CONSTANTS: {
+    VALID_JWT_TOKEN: string;
+    EXPIRED_JWT_TOKEN: string;
+    MALFORMED_JWT_TOKEN: string;
+    MALICIOUS_PAYLOADS: Record<string, any>;
+    RATE_LIMIT_TEST_ROUTES: string[];
+    SECURITY_HEADERS: {
+      REQUIRED: string[];
+      FORBIDDEN: string[];
+    };
+  };
   var waitForRateLimit: (ms?: number) => Promise<void>;
   var generateMaliciousPayload: (type: string) => string;
   var assertSecurityHeaders: (response: any) => void;
   var SecurityTestUtils: typeof import('./utils/security-test-utils').SecurityTestUtils;
-  
+}
+
+// Jest matcher extensions
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace jest {
     interface Matchers<R> {
       toBeSecurelyConfigured(): R;
