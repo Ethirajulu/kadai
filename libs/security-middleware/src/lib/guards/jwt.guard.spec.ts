@@ -111,6 +111,7 @@ describe('JwtGuard', () => {
       extractTokenFromRequest: jest.fn(),
       isTokenBlacklisted: jest.fn(),
       isTokenNearExpiration: jest.fn(),
+      decodeToken: jest.fn(),
     };
 
     // Create mocked Reflector
@@ -155,6 +156,8 @@ describe('JwtGuard', () => {
       const mockPayload = createMockTokenPayload();
 
       jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Act
@@ -173,10 +176,13 @@ describe('JwtGuard', () => {
       const request = createMockRequest({ headers: {} });
       const context = createMockExecutionContext(request);
 
+      jwtService.extractTokenFromRequest.mockReturnValue(null);
+
       // Act & Assert
       await expect(guard.canActivate(context)).rejects.toThrow(
         UnauthorizedException
       );
+      expect(jwtService.extractTokenFromRequest).toHaveBeenCalledWith(request);
     });
 
     it('should handle Authorization header without Bearer prefix', async () => {
@@ -186,10 +192,13 @@ describe('JwtGuard', () => {
       });
       const context = createMockExecutionContext(request);
 
+      jwtService.extractTokenFromRequest.mockReturnValue(null);
+
       // Act & Assert
       await expect(guard.canActivate(context)).rejects.toThrow(
         UnauthorizedException
       );
+      expect(jwtService.extractTokenFromRequest).toHaveBeenCalledWith(request);
     });
 
     it('should handle malformed Authorization header', async () => {
@@ -199,10 +208,13 @@ describe('JwtGuard', () => {
       });
       const context = createMockExecutionContext(request);
 
+      jwtService.extractTokenFromRequest.mockReturnValue(null);
+
       // Act & Assert
       await expect(guard.canActivate(context)).rejects.toThrow(
         UnauthorizedException
       );
+      expect(jwtService.extractTokenFromRequest).toHaveBeenCalledWith(request);
     });
   });
 
@@ -213,16 +225,22 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
       const mockPayload = createMockTokenPayload();
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
 
       // Act
       const result = await guard.canActivate(context);
 
       // Assert
       expect(result).toBe(true);
+      expect(jwtService.extractTokenFromRequest).toHaveBeenCalledWith(request);
+      expect(jwtService.validateAccessToken).toHaveBeenCalledWith('valid.jwt.token');
       expect(request.user).toEqual(mockPayload);
+      expect(request.token).toBe('valid.jwt.token');
       expect(request.tokenPayload).toEqual(mockPayload);
-      expect(request.isTokenRefreshed).toBe(false);
     });
 
     it('should reject expired token', async () => {
@@ -232,6 +250,7 @@ describe('JwtGuard', () => {
       });
       const context = createMockExecutionContext(request);
 
+      jwtService.extractTokenFromRequest.mockReturnValue('expired.jwt.token');
       jwtService.validateAccessToken.mockRejectedValue(new Error('Token has expired'));
 
       // Act & Assert
@@ -248,13 +267,14 @@ describe('JwtGuard', () => {
       });
       const context = createMockExecutionContext(request);
 
-      jwtService.validateAccessToken.mockRejectedValue(new Error('Token has been blacklisted'));
+      jwtService.extractTokenFromRequest.mockReturnValue('blacklisted.jwt.token');
+      jwtService.validateAccessToken.mockRejectedValue(new Error('Token has been revoked'));
 
       // Act & Assert
       await expect(guard.canActivate(context)).rejects.toThrow(
         UnauthorizedException
       );
-      expect(request.authError).toBe('Token has been blacklisted');
+      expect(request.authError).toBe('Token has been revoked');
     });
 
     it('should reject token with invalid signature', async () => {
@@ -295,7 +315,11 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
       const mockPayload = createMockTokenPayload();
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
 
       reflector.getAllAndOverride.mockReturnValue(null); // No roles required
 
@@ -314,12 +338,16 @@ describe('JwtGuard', () => {
         role: TEST_CONSTANTS.ROLE_ADMIN,
       });
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
 
-      // Mock specific metadata keys
-      reflector.getAllAndOverride
-        .mockReturnValueOnce([TEST_CONSTANTS.ROLE_ADMIN]) // For roles
-        .mockReturnValueOnce(null); // For permissions
+      // Mock security options to require admin role
+      reflector.getAllAndOverride.mockReturnValue({
+        requireRoles: [TEST_CONSTANTS.ROLE_ADMIN]
+      });
 
       // Act
       const result = await guard.canActivate(context);
@@ -336,12 +364,16 @@ describe('JwtGuard', () => {
         role: TEST_CONSTANTS.ROLE_MODERATOR,
       });
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
 
-      // Mock specific metadata keys
-      reflector.getAllAndOverride
-        .mockReturnValueOnce([TEST_CONSTANTS.ROLE_ADMIN, TEST_CONSTANTS.ROLE_MODERATOR]) // For roles
-        .mockReturnValueOnce(null); // For permissions
+      // Mock security options to require admin or moderator role
+      reflector.getAllAndOverride.mockReturnValue({
+        requireRoles: [TEST_CONSTANTS.ROLE_ADMIN, TEST_CONSTANTS.ROLE_MODERATOR]
+      });
 
       // Act
       const result = await guard.canActivate(context);
@@ -358,9 +390,16 @@ describe('JwtGuard', () => {
         role: TEST_CONSTANTS.ROLE_USER,
       });
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
 
-      reflector.getAllAndOverride.mockReturnValue([TEST_CONSTANTS.ROLE_ADMIN]);
+      // Mock security options to require admin role
+      reflector.getAllAndOverride.mockReturnValue({
+        requireRoles: [TEST_CONSTANTS.ROLE_ADMIN]
+      });
 
       // Act & Assert
       await expect(guard.canActivate(context)).rejects.toThrow(
@@ -378,12 +417,16 @@ describe('JwtGuard', () => {
         permissions: ['read:profile', 'write:profile', 'read:users'],
       });
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
 
-      // Mock specific metadata keys
-      reflector.getAllAndOverride
-        .mockReturnValueOnce(null) // For roles
-        .mockReturnValueOnce(['read:users']); // For permissions
+      // Mock security options to require specific permissions
+      reflector.getAllAndOverride.mockReturnValue({
+        requirePermissions: ['read:users']
+      });
 
       // Act
       const result = await guard.canActivate(context);
@@ -405,12 +448,14 @@ describe('JwtGuard', () => {
         ],
       });
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
 
-      // Mock specific metadata keys
-      reflector.getAllAndOverride
-        .mockReturnValueOnce(null) // For roles
-        .mockReturnValueOnce(['read:users', 'write:users']); // For permissions
+      // Mock security options to require multiple permissions
+      reflector.getAllAndOverride.mockReturnValue({
+        requirePermissions: ['read:users', 'write:users']
+      });
 
       // Act
       const result = await guard.canActivate(context);
@@ -427,11 +472,14 @@ describe('JwtGuard', () => {
         permissions: ['read:profile', 'write:profile'],
       });
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
 
-      reflector.getAllAndOverride
-        .mockReturnValueOnce(null) // No roles required
-        .mockReturnValueOnce(['admin:users']); // Permission not granted
+      // Mock security options to require permission user doesn't have
+      reflector.getAllAndOverride.mockReturnValue({
+        requirePermissions: ['admin:users']
+      });
 
       // Act & Assert
       await expect(guard.canActivate(context)).rejects.toThrow(
@@ -447,11 +495,14 @@ describe('JwtGuard', () => {
         permissions: ['read:profile', 'write:profile', 'read:users'],
       });
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
 
-      reflector.getAllAndOverride
-        .mockReturnValueOnce(null) // No roles required
-        .mockReturnValueOnce(['read:users', 'admin:users']); // User missing 'admin:users'
+      // Mock security options - user has 'read:users' but missing 'admin:users'
+      reflector.getAllAndOverride.mockReturnValue({
+        requirePermissions: ['read:users', 'admin:users']
+      });
 
       // Act & Assert
       await expect(guard.canActivate(context)).rejects.toThrow(
@@ -467,6 +518,8 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
       const mockPayload = createMockTokenPayload();
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Mock JWT security options
@@ -494,6 +547,8 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
       const mockPayload = createMockTokenPayload();
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Mock the security options to return validateDevice: true
@@ -522,6 +577,8 @@ describe('JwtGuard', () => {
         ipAddress: '192.168.1.999', // Different IP
       });
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Act
@@ -540,6 +597,8 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
       const mockPayload = createMockTokenPayload();
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       reflector.getAllAndOverride
@@ -564,6 +623,8 @@ describe('JwtGuard', () => {
         exp: oldTime + 900,
       });
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Mock the security options to return maxTokenAge: 1800 (30 minutes)
@@ -589,6 +650,8 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
       const mockPayload = createMockTokenPayload();
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       reflector.getAllAndOverride
@@ -614,6 +677,8 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
       const mockPayload = createMockTokenPayload();
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Mock the security options to return requireSecureContext: true
@@ -651,6 +716,8 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
       const mockPayload = createMockTokenPayload();
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       reflector.getAllAndOverride.mockImplementation(() => {
@@ -690,6 +757,8 @@ describe('JwtGuard', () => {
       const context = createMockExecutionContext(request);
       const mockPayload = createMockTokenPayload();
 
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
       jwtService.validateAccessToken.mockResolvedValue(mockPayload);
 
       // Mock the security options to return requireAuth: false

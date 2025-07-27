@@ -22,19 +22,19 @@ export class JwtGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<JWTAuthRequest>();
     
-    // Get security options from decorator metadata
-    const securityOptions = this.reflector.getAllAndOverride<JWTSecurityOptions>('jwt-security', [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    // Check if authentication is required
-    const requireAuth = securityOptions?.requireAuth ?? true;
-    if (!requireAuth) {
-      return true;
-    }
-
     try {
+      
+      // Get security options from decorator metadata
+      const securityOptions = this.reflector.getAllAndOverride<JWTSecurityOptions>('jwt-security', [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+
+      // Check if authentication is required
+      const requireAuth = securityOptions?.requireAuth ?? true;
+      if (!requireAuth) {
+        return true;
+      }
       // Extract token from request
       const token = this.jwtService.extractTokenFromRequest(request);
       

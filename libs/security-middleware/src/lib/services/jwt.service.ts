@@ -12,6 +12,7 @@ import {
   JWTTokenPayload,
   JWTTokenPair,
   User,
+  UserRole,
   SecurityRequest,
   JWTAuthRequest,
 } from '../types/security.types';
@@ -240,27 +241,80 @@ export class JWTService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Refresh tokens using refresh token
+   * Refresh tokens using refresh token with user object
    */
-  async refreshTokens(refreshToken: string, user: User): Promise<JWTTokenPair> {
+  async refreshTokens(refreshToken: string, user: User): Promise<JWTTokenPair>;
+  
+  /**
+   * Refresh tokens using refresh token with options
+   */
+  async refreshTokens(refreshToken: string, options: {
+    rotateRefreshToken?: boolean;
+    validateDevice?: boolean;
+    requireSecureContext?: boolean;
+  }): Promise<JWTTokenPair>;
+  
+  /**
+   * Refresh tokens implementation
+   */
+  async refreshTokens(
+    refreshToken: string, 
+    userOrOptions: User | {
+      rotateRefreshToken?: boolean;
+      validateDevice?: boolean;
+      requireSecureContext?: boolean;
+    }
+  ): Promise<JWTTokenPair> {
     try {
       // Validate refresh token
       const refreshPayload = await this.validateRefreshToken(refreshToken);
 
-      if (refreshPayload.sub !== user.id) {
-        throw new Error('Refresh token does not match user');
+      // Determine if we have a User object or options
+      const isUserObject = 'id' in userOrOptions;
+      
+      if (isUserObject) {
+        const user = userOrOptions as User;
+        if (refreshPayload.sub !== user.id) {
+          throw new Error('Refresh token does not match user');
+        }
+
+        // Generate new token pair
+        const newTokenPair = await this.generateTokenPair(user);
+
+        // Blacklist old refresh token
+        if (refreshPayload.jti && refreshPayload.exp) {
+          await this.blacklistToken(refreshPayload.jti, refreshPayload.exp);
+        }
+
+        this.logger.debug(`Tokens refreshed for user ${user.id}`);
+        return newTokenPair;
+      } else {
+        // Handle options-based call
+        const options = userOrOptions as {
+          rotateRefreshToken?: boolean;
+          validateDevice?: boolean;
+          requireSecureContext?: boolean;
+        };
+
+        // Create user from refresh payload
+        const user: User = {
+          id: refreshPayload.sub,
+          email: refreshPayload.email || '',
+          role: (refreshPayload.role as UserRole) || UserRole.USER,
+          name: refreshPayload.name
+        };
+
+        // Generate new token pair
+        const newTokenPair = await this.generateTokenPair(user);
+
+        // Blacklist old refresh token if rotation is enabled
+        if (options.rotateRefreshToken !== false && refreshPayload.jti && refreshPayload.exp) {
+          await this.blacklistToken(refreshPayload.jti, refreshPayload.exp);
+        }
+
+        this.logger.debug(`Tokens refreshed for user ${user.id} with options`, options);
+        return newTokenPair;
       }
-
-      // Generate new token pair
-      const newTokenPair = await this.generateTokenPair(user);
-
-      // Blacklist old refresh token
-      if (refreshPayload.jti && refreshPayload.exp) {
-        await this.blacklistToken(refreshPayload.jti, refreshPayload.exp);
-      }
-
-      this.logger.debug(`Tokens refreshed for user ${user.id}`);
-      return newTokenPair;
     } catch (error) {
       this.logger.error('Token refresh failed', error);
       throw new Error('Invalid refresh token');

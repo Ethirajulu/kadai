@@ -61,6 +61,7 @@ describe('JWTService', () => {
       ping: jest.fn(),
       disconnect: jest.fn(),
       ttl: jest.fn(),
+      scanStream: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -74,17 +75,15 @@ describe('JWTService', () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
-        {
-          provide: 'REDIS_CLIENT',
-          useValue: mockRedis,
-        },
       ],
     }).compile();
 
     service = module.get<JWTService>(JWTService);
     jwtService = module.get(JwtService);
-    // configService = module.get(ConfigService);
-    redis = module.get('REDIS_CLIENT');
+    redis = mockRedis;
+    
+    // Mock Redis initialization
+    service['redis'] = redis as any;
   });
 
   describe('Token Generation', () => {
@@ -97,10 +96,12 @@ describe('JWTService', () => {
       expect(jwtService.sign).toHaveBeenCalledWith(
         {
           sub: mockUser.id,
+          id: mockUser.id,
           email: mockUser.email,
           role: mockUser.role,
           name: mockUser.name,
-          type: 'access',
+          permissions: undefined,
+          tokenType: 'access',
           iat: expect.any(Number),
           jti: expect.any(String),
         },
@@ -124,7 +125,8 @@ describe('JWTService', () => {
       expect(jwtService.sign).toHaveBeenCalledWith(
         {
           sub: mockUser.id,
-          type: 'refresh',
+          id: mockUser.id,
+          tokenType: 'refresh',
           iat: expect.any(Number),
           jti: expect.any(String),
         },
@@ -295,8 +297,9 @@ describe('JWTService', () => {
       const mockRefreshToken = 'valid-refresh-token';
       const mockPayload = {
         sub: mockUser.id,
-        type: 'refresh',
+        tokenType: 'refresh',
         jti: 'refresh-token-id',
+        exp: Math.floor(Date.now() / 1000) + 3600,
       };
 
       const newAccessToken = 'new-access-token';

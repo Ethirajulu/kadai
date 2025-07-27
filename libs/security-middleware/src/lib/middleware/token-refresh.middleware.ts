@@ -122,6 +122,7 @@ export class TokenRefreshMiddleware implements NestMiddleware {
     res.setHeader('X-New-Access-Token', tokenPair.accessToken);
     res.setHeader('X-New-Refresh-Token', tokenPair.refreshToken);
     res.setHeader('X-Token-Refreshed', 'true');
+    res.setHeader('X-Token-Expires-In', tokenPair.expiresIn.toString());
 
     // Optionally set tokens in cookies (if using cookie-based auth)
     const isSecure = process.env.NODE_ENV === 'production';
