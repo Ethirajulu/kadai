@@ -108,7 +108,13 @@ run_dependency_scan() {
     if snyk test --json > "$REPORTS_DIR/snyk-deps-$TIMESTAMP.json" 2>/dev/null; then
         log_success "Snyk dependency scan completed - no high/critical vulnerabilities found"
     else
-        log_warning "Snyk dependency scan found vulnerabilities - check report for details"
+        # Check if it's an authentication issue
+        if grep -q "Use.*snyk auth.*to authenticate" "$REPORTS_DIR/snyk-deps-$TIMESTAMP.json" 2>/dev/null; then
+            log_warning "Snyk dependency scan requires authentication - run 'snyk auth' to enable full scanning"
+            echo "Authentication required - limited scan performed" > "$REPORTS_DIR/snyk-deps-$TIMESTAMP.json"
+        else
+            log_warning "Snyk dependency scan found vulnerabilities - check report for details"
+        fi
     fi
     
     # Safety scan for Python dependencies
@@ -132,7 +138,13 @@ run_code_scan() {
     if snyk code test --json > "$REPORTS_DIR/snyk-code-$TIMESTAMP.json" 2>/dev/null; then
         log_success "Snyk code analysis completed - no issues found"
     else
-        log_warning "Snyk code analysis found issues - check report for details"
+        # Check if it's an authentication issue
+        if grep -q "Use.*snyk auth.*to authenticate" "$REPORTS_DIR/snyk-code-$TIMESTAMP.json" 2>/dev/null; then
+            log_warning "Snyk code analysis requires authentication - run 'snyk auth' to enable full scanning"
+            echo "Authentication required - limited scan performed" > "$REPORTS_DIR/snyk-code-$TIMESTAMP.json"
+        else
+            log_warning "Snyk code analysis found issues - check report for details"
+        fi
     fi
     
     # Semgrep scan

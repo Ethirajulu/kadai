@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 
 // Security test utilities and matchers
 import './matchers/security-matchers';
-import './utils/security-test-utils';
+import { SecurityTestUtils } from './utils/security-test-utils';
 
 // Global test configuration
 beforeAll(async () => {
@@ -181,6 +181,8 @@ global.generateMaliciousPayload = (type: string) => {
   return global.SECURITY_TEST_CONSTANTS.MALICIOUS_PAYLOADS[type] || type;
 };
 
+global.SecurityTestUtils = SecurityTestUtils;
+
 global.assertSecurityHeaders = (response: any) => {
   const headers = response.headers || {};
   
@@ -248,6 +250,7 @@ declare global {
   var waitForRateLimit: (ms?: number) => Promise<void>;
   var generateMaliciousPayload: (type: string) => string;
   var assertSecurityHeaders: (response: any) => void;
+  var SecurityTestUtils: typeof import('./utils/security-test-utils').SecurityTestUtils;
   
   namespace jest {
     interface Matchers<R> {

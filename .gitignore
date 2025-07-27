@@ -117,3 +117,5 @@ vitest.config.*.timestamp*
 
 libs/database-config/src/postgresql/generated
 libs/database-config/src/generated
+
+security-reports

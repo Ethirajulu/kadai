@@ -1,8 +1,7 @@
-import { Config } from 'jest';
+const { pathsToModuleNameMapper } = require('ts-jest');
 
-const config: Config = {
+module.exports = {
   displayName: 'Security Tests',
-  preset: './jest.preset.js',
   
   // Test match patterns for security tests
   testMatch: [
@@ -71,18 +70,17 @@ const config: Config = {
   coverageDirectory: '<rootDir>/coverage/security',
   
   // Module name mapping
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@kadai/(.*)$': '<rootDir>/libs/$1/src',
     '^apps/(.*)$': '<rootDir>/apps/$1/src',
   },
   
   // Transform configuration
   transform: {
-    '^.+\\.(ts|js|html)$': [
-      'jest-preset-angular',
+    '^.+\\.(ts|tsx)$': [
+      'ts-jest',
       {
         tsconfig: '<rootDir>/tsconfig.spec.json',
-        stringifyContentPathRegex: '\\.(html|svg)$',
       },
     ],
   },
@@ -90,17 +88,8 @@ const config: Config = {
   // Module file extensions
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   
-  // Resolver
-  resolver: 'jest-preset-angular/build/resolvers/ng-jest-resolver.js',
-  
-  // Globals
-  globals: {
-    'ts-jest': {
-      useESM: true,
-      stringifyContentPathRegex: '\\.(html|svg)$',
-      tsconfig: '<rootDir>/tsconfig.spec.json',
-    },
-  },
+  // Jest preset for Node.js testing
+  preset: 'ts-jest/presets/default',
   
   // Test timeout for security tests (they might take longer)
   testTimeout: 30000,
@@ -120,32 +109,7 @@ const config: Config = {
   ],
   
   // Custom reporters for security test results
-  reporters: [
-    'default',
-    [
-      'jest-html-reporters',
-      {
-        publicPath: './coverage/security/html-report',
-        filename: 'security-test-report.html',
-        expand: true,
-        hideIcon: false,
-        pageTitle: 'Kadai Security Test Report',
-        logoImgPath: undefined,
-        inlineSource: false,
-      },
-    ],
-    [
-      'jest-junit',
-      {
-        outputDirectory: './coverage/security',
-        outputName: 'security-test-results.xml',
-        classNameTemplate: '{classname}',
-        titleTemplate: '{title}',
-        ancestorSeparator: ' › ',
-        usePathForSuiteName: true,
-      },
-    ],
-  ],
+  reporters: ['default'],
   
   // Error handling
   errorOnDeprecated: true,
@@ -155,6 +119,4 @@ const config: Config = {
   
   // Max workers (limit for security tests)
   maxWorkers: 2,
-}
-
-export default config;
+};

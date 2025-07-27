@@ -5,11 +5,30 @@
 import { randomBytes, createHash } from 'crypto';
 import { sign, verify } from 'jsonwebtoken';
 
+// Type definitions for security testing
+export interface SecurityTestJWTOptions {
+  secret?: string;
+  algorithm?: string;
+  expiresIn?: string | number;
+}
+
+export interface SecurityTestResult {
+  success: boolean;
+  message: string;
+  data?: any;
+}
+
+export interface SecurityTestConfig {
+  timeout?: number;
+  retries?: number;
+  strict?: boolean;
+}
+
 export class SecurityTestUtils {
   /**
    * Generate test JWT tokens for security testing
    */
-  static generateTestJWT(payload: any = {}, options: any = {}): string {
+  static generateTestJWT(payload: any = {}, options: SecurityTestJWTOptions = {}): string {
     const defaultPayload = {
       sub: 'test-user-id',
       email: 'test@example.com',
@@ -386,15 +405,23 @@ export class SecurityTestUtils {
     target: () => Promise<any>,
     attempts: number = 10,
     delay: number = 100
-  ): Promise<any[]> {
+  ): Promise<SecurityTestResult[]> {
     const results = [];
     
     for (let i = 0; i < attempts; i++) {
       try {
         const result = await target();
-        results.push({ attempt: i + 1, success: true, result });
-      } catch (error) {
-        results.push({ attempt: i + 1, success: false, error: error.message });
+        results.push({ 
+          success: true, 
+          message: `Attempt ${i + 1} succeeded`,
+          data: { attempt: i + 1, result }
+        });
+      } catch (error: any) {
+        results.push({ 
+          success: false, 
+          message: `Attempt ${i + 1} failed: ${error.message}`,
+          data: { attempt: i + 1, error: error.message }
+        });
       }
       
       // Add delay between attempts

@@ -163,7 +163,7 @@ describe('RateLimitService', () => {
       const mockError = new Error('Redis pool initialization failed');
       mockConnectionPool.initialize.mockRejectedValue(mockError);
 
-      await expect(service.onModuleInit()).rejects.toThrow(mockError);
+      await expect(service.onModuleInit()).rejects.toThrow('Redis pool initialization failed');
     });
 
     it('should skip initialization when rate limiting is disabled', async () => {
@@ -206,8 +206,9 @@ describe('RateLimitService', () => {
 
       await service.onModuleInit();
 
-      // Should not throw during shutdown
-      await expect(service.onModuleDestroy()).resolves.not.toThrow();
+      // Should not throw during shutdown (test logs error but continues)
+      await service.onModuleDestroy();
+      expect(mockConnectionPool.shutdown).toHaveBeenCalled();
     });
   });
 
@@ -260,12 +261,14 @@ describe('RateLimitService', () => {
     });
 
     it('should check rate limit with circuit breaker protection', async () => {
-      const mockRedisResult = [1, 99, 900000]; // current, remaining, resetTime
-      mockConnectionPool.execute.mockResolvedValue({
-        allowed: true,
-        remaining: 99,
-        resetTime: Date.now() + 900000,
-        totalHits: 1,
+      mockConnectionPool.execute.mockImplementation((operation, fallback) => {
+        // Simulate successful Redis operation
+        return Promise.resolve({
+          allowed: true,
+          remaining: 99,
+          resetTime: Date.now() + 900000,
+          totalHits: 1,
+        });
       });
 
       const result = await service.checkRateLimit({
@@ -279,7 +282,19 @@ describe('RateLimitService', () => {
     });
 
     it('should handle Redis unavailability with graceful degradation', async () => {
-      mockConnectionPool.execute.mockRejectedValue(new Error('Redis connection failed'));
+      mockConnectionPool.execute.mockImplementation((operation, fallback) => {
+        if (fallback) {
+          return fallback();
+        }
+        throw new Error('Redis connection failed');
+      });
+
+      mockConnectionPool.getPoolHealth.mockReturnValue({
+        totalConnections: 3,
+        healthyConnections: 0,
+        circuitBreakerState: 'OPEN',
+        connections: [],
+      });
 
       const result = await service.checkRateLimit({
         request: mockRequest,
@@ -307,11 +322,13 @@ describe('RateLimitService', () => {
     });
 
     it('should handle sliding window rate limiting', async () => {
-      mockConnectionPool.execute.mockResolvedValue({
-        allowed: false,
-        remaining: 0,
-        resetTime: Date.now() + 300000,
-        totalHits: 100,
+      mockConnectionPool.execute.mockImplementation(() => {
+        return Promise.resolve({
+          allowed: false,
+          remaining: 0,
+          resetTime: Date.now() + 300000,
+          totalHits: 100,
+        });
       });
 
       const result = await service.checkRateLimit({
@@ -326,11 +343,13 @@ describe('RateLimitService', () => {
     });
 
     it('should handle fixed window rate limiting', async () => {
-      mockConnectionPool.execute.mockResolvedValue({
-        allowed: false,
-        remaining: 0,
-        resetTime: Date.now() + 300000,
-        totalHits: 100,
+      mockConnectionPool.execute.mockImplementation(() => {
+        return Promise.resolve({
+          allowed: false,
+          remaining: 0,
+          resetTime: Date.now() + 300000,
+          totalHits: 100,
+        });
       });
 
       const result = await service.checkRateLimit({
@@ -345,14 +364,22 @@ describe('RateLimitService', () => {
 
     it('should handle burst limit checking', async () => {
       // Mock burst check to return exceeded
-      mockConnectionPool.execute
-        .mockResolvedValueOnce({ exceeded: true, count: 25 }) // burst check
-        .mockResolvedValueOnce({ // main rate limit check (shouldn't be called)
-          allowed: true,
-          remaining: 50,
-          resetTime: Date.now() + 300000,
-          totalHits: 50,
-        });
+      let callCount = 0;
+      mockConnectionPool.execute.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // First call: burst check
+          return Promise.resolve({ exceeded: true, count: 25 });
+        } else {
+          // Subsequent calls: main rate limit check
+          return Promise.resolve({
+            allowed: true,
+            remaining: 50,
+            resetTime: Date.now() + 300000,
+            totalHits: 50,
+          });
+        }
+      });
 
       const result = await service.checkRateLimit({
         request: mockRequest,
@@ -399,11 +426,13 @@ describe('RateLimitService', () => {
       jest.spyOn(require('os'), 'loadavg').mockReturnValue([2.0, 1.8, 1.5]);
       jest.spyOn(require('os'), 'cpus').mockReturnValue(new Array(4));
 
-      mockConnectionPool.execute.mockResolvedValue({
-        allowed: true,
-        remaining: 50,
-        resetTime: Date.now() + 300000,
-        totalHits: 50,
+      mockConnectionPool.execute.mockImplementation(() => {
+        return Promise.resolve({
+          allowed: true,
+          remaining: 50,
+          resetTime: Date.now() + 300000,
+          totalHits: 50,
+        });
       });
 
       const result = await service.checkRateLimit({
@@ -412,6 +441,7 @@ describe('RateLimitService', () => {
         adaptive: true,
       });
 
+      // Under normal load, adaptive limit should not be applied
       expect(result.adaptiveLimit).toBeUndefined();
     });
   });
@@ -563,6 +593,8 @@ describe('RateLimitService', () => {
       const whitelistedRequest = {
         ...mockRequest,
         ip: TEST_CONSTANTS.WHITELISTED_IP,
+        connection: { remoteAddress: TEST_CONSTANTS.WHITELISTED_IP },
+        socket: { remoteAddress: TEST_CONSTANTS.WHITELISTED_IP },
       };
 
       const isWhitelisted = service.isWhitelisted(whitelistedRequest);
@@ -615,7 +647,19 @@ describe('RateLimitService', () => {
     });
 
     it('should handle Redis validation errors gracefully', async () => {
-      mockConnectionPool.execute.mockRejectedValue(new Error('Invalid Redis response format'));
+      mockConnectionPool.execute.mockImplementation((operation, fallback) => {
+        if (fallback) {
+          return fallback();
+        }
+        throw new Error('Invalid Redis response format');
+      });
+
+      mockConnectionPool.getPoolHealth.mockReturnValue({
+        totalConnections: 3,
+        healthyConnections: 0,
+        circuitBreakerState: 'OPEN',
+        connections: [],
+      });
 
       const result = await service.checkRateLimit({
         request: mockRequest,
