@@ -9,12 +9,13 @@ describe('RedisConnectionPool', () => {
 
   beforeEach(() => {
     mockRedis = {
-      ping: jest.fn(),
+      ping: jest.fn().mockResolvedValue('PONG'),
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
       status: 'ready',
-      disconnect: jest.fn(),
+      disconnect: jest.fn().mockResolvedValue(undefined),
+      connect: jest.fn().mockResolvedValue(undefined),
       on: jest.fn(),
       off: jest.fn(),
       removeAllListeners: jest.fn(),

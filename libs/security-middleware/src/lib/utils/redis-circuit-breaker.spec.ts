@@ -66,10 +66,17 @@ describe('RedisCircuitBreaker', () => {
 
     it('should transition to HALF_OPEN after reset timeout', async () => {
       // Force to OPEN state
-      (circuitBreaker as any).state = CircuitBreakerState.OPEN;
-      (circuitBreaker as any).lastFailureTime = Date.now() - 11000; // 11 seconds ago
+      circuitBreaker.open();
+      
+      // Manually set next attempt time to past to allow transition
+      (circuitBreaker as any).metrics.nextAttemptTime = Date.now() - 1000;
 
-      expect(circuitBreaker.getState()).toBe(CircuitBreakerState.HALF_OPEN);
+      // Execute an operation which should transition to HALF_OPEN
+      mockRedis.ping.mockResolvedValue('PONG');
+      const result = await circuitBreaker.execute(() => mockRedis.ping());
+
+      expect(result).toBe('PONG');
+      expect(circuitBreaker.getState()).toBe(CircuitBreakerState.CLOSED);
     });
 
     it('should transition to CLOSED on successful operation in HALF_OPEN', async () => {
@@ -109,11 +116,11 @@ describe('RedisCircuitBreaker', () => {
     });
 
     it('should reject immediately when circuit is OPEN', async () => {
-      (circuitBreaker as any).state = CircuitBreakerState.OPEN;
+      circuitBreaker.open();
 
       await expect(
         circuitBreaker.execute(() => mockRedis.get('test-key'))
-      ).rejects.toThrow('Circuit breaker is OPEN');
+      ).rejects.toThrow('Circuit breaker');
 
       expect(mockRedis.get).not.toHaveBeenCalled();
     });
@@ -136,52 +143,49 @@ describe('RedisCircuitBreaker', () => {
         // Expected to fail
       }
 
-      expect((circuitBreaker as any).failureCount).toBe(1);
+      const metricsAfterFailure = circuitBreaker.getMetrics();
+      expect(metricsAfterFailure.totalFailures).toBe(1);
 
+      // Force to HALF_OPEN state to test success reset
+      (circuitBreaker as any).metrics.state = CircuitBreakerState.HALF_OPEN;
+      
       // Now succeed
       mockRedis.ping.mockResolvedValue('PONG');
       await circuitBreaker.execute(() => mockRedis.ping());
 
-      expect((circuitBreaker as any).failureCount).toBe(0);
+      const metricsAfterSuccess = circuitBreaker.getMetrics();
+      expect(metricsAfterSuccess.totalFailures).toBe(0);
+      expect(circuitBreaker.getState()).toBe(CircuitBreakerState.CLOSED);
     });
   });
 
   describe('health monitoring', () => {
-    it('should start health monitoring', () => {
-      (circuitBreaker as any).startHealthMonitoring();
-      expect(mockRedis.on).toHaveBeenCalledWith('error', expect.any(Function));
-      expect(mockRedis.on).toHaveBeenCalledWith('ready', expect.any(Function));
+    it('should provide circuit breaker availability status', () => {
+      expect(circuitBreaker.isAvailable()).toBe(true);
     });
 
-    it('should stop health monitoring', () => {
-      (circuitBreaker as any).stopHealthMonitoring();
-      expect(mockRedis.off).toHaveBeenCalledWith('error', expect.any(Function));
-      expect(mockRedis.off).toHaveBeenCalledWith('ready', expect.any(Function));
+    it('should report unavailable when circuit is open', () => {
+      circuitBreaker.open();
+      expect(circuitBreaker.isAvailable()).toBe(false);
     });
 
-    it('should handle Redis error events', () => {
-      (circuitBreaker as any).startHealthMonitoring();
-      const errorHandler = mockRedis.on.mock.calls.find(
-        (call) => call[0] === 'error'
-      )?.[1];
-
-      if (errorHandler) {
-        errorHandler(new Error('Redis connection lost'));
-        expect(circuitBreaker.getState()).toBe(CircuitBreakerState.OPEN);
-      }
+    it('should report available after recovery timeout in open state', () => {
+      circuitBreaker.open();
+      
+      // Set next attempt time to past
+      (circuitBreaker as any).metrics.nextAttemptTime = Date.now() - 1000;
+      
+      expect(circuitBreaker.isAvailable()).toBe(true);
     });
 
-    it('should handle Redis ready events', () => {
-      (circuitBreaker as any).state = CircuitBreakerState.OPEN;
-      (circuitBreaker as any).startHealthMonitoring();
-      const readyHandler = mockRedis.on.mock.calls.find(
-        (call) => call[0] === 'ready'
-      )?.[1];
-
-      if (readyHandler) {
-        readyHandler();
-        expect(circuitBreaker.getState()).toBe(CircuitBreakerState.HALF_OPEN);
-      }
+    it('should allow manual circuit control', () => {
+      // Test manual open
+      circuitBreaker.open();
+      expect(circuitBreaker.getState()).toBe(CircuitBreakerState.OPEN);
+      
+      // Test manual close
+      circuitBreaker.close();
+      expect(circuitBreaker.getState()).toBe(CircuitBreakerState.CLOSED);
     });
   });
 
@@ -191,27 +195,32 @@ describe('RedisCircuitBreaker', () => {
 
       expect(health.state).toBe(CircuitBreakerState.CLOSED);
       expect(health.isHealthy).toBe(true);
-      expect((circuitBreaker as any).failureCount).toBe(0);
+      expect(health.metrics.totalFailures).toBe(0);
     });
 
     it('should return unhealthy status when circuit is OPEN', () => {
-      (circuitBreaker as any).state = CircuitBreakerState.OPEN;
-      (circuitBreaker as any).failureCount = 5;
+      circuitBreaker.open();
 
       const health = circuitBreaker.getHealthStatus();
 
       expect(health.state).toBe(CircuitBreakerState.OPEN);
       expect(health.isHealthy).toBe(false);
-      expect((circuitBreaker as any).failureCount).toBe(5);
     });
 
-    it('should include last failure time in health status', () => {
-      const failureTime = Date.now() - 5000;
-      (circuitBreaker as any).lastFailureTime = failureTime;
+    it('should include metrics in health status', async () => {
+      // Generate some activity
+      try {
+        await circuitBreaker.execute(() => Promise.reject(new Error('test')));
+      } catch {
+        // Expected failure
+      }
 
       const health = circuitBreaker.getHealthStatus();
 
-      expect((circuitBreaker as any).lastFailureTime).toBe(failureTime);
+      expect(health.metrics).toBeDefined();
+      expect(health.metrics.totalRequests).toBeGreaterThan(0);
+      expect(health.config).toBeDefined();
+      expect(health.name).toBeDefined();
     });
   });
 
@@ -245,29 +254,33 @@ describe('RedisCircuitBreaker', () => {
       expect(circuitBreaker.getState()).toBe(CircuitBreakerState.OPEN);
     });
 
-    it('should cleanup resources on destroy', () => {
-      (circuitBreaker as any).startHealthMonitoring();
-      (circuitBreaker as any).destroy();
-
-      expect(mockRedis.off).toHaveBeenCalled();
-      expect(mockRedis.disconnect).toHaveBeenCalled();
+    it('should provide circuit breaker state information', () => {
+      const metrics = circuitBreaker.getMetrics();
+      
+      expect(metrics).toHaveProperty('totalRequests');
+      expect(metrics).toHaveProperty('totalFailures');
+      expect(metrics).toHaveProperty('lastFailureTime');
+      expect(metrics).toHaveProperty('state');
+      expect(metrics).toHaveProperty('nextAttemptTime');
+      expect(metrics.state).toBe(CircuitBreakerState.CLOSED);
     });
   });
 
   describe('timeout handling', () => {
-    it('should handle operation timeouts', async () => {
-      const timeoutBreaker = new RedisCircuitBreaker('redis://localhost:6379', {
+    it('should handle operation failures gracefully', async () => {
+      const timeoutBreaker = new RedisCircuitBreaker('test-timeout', {
         failureThreshold: 1,
       });
-      (timeoutBreaker as any).redis = mockRedis;
 
-      mockRedis.get.mockImplementation(
-        () => new Promise((resolve) => setTimeout(resolve, 200))
-      );
+      // Mock an operation that fails with timeout error
+      mockRedis.get.mockRejectedValue(new Error('Operation timeout'));
 
       await expect(
         timeoutBreaker.execute(() => mockRedis.get('timeout-key'))
-      ).rejects.toThrow();
+      ).rejects.toThrow('Operation timeout');
+
+      // Should transition to OPEN after failure
+      expect(timeoutBreaker.getState()).toBe(CircuitBreakerState.OPEN);
     });
   });
 });

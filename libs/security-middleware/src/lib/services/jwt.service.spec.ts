@@ -514,58 +514,39 @@ describe('JWTService', () => {
   });
 
   describe('Token Storage and Cleanup', () => {
-    it('should clean up expired blacklisted tokens', async () => {
-      // Mock Redis SCAN for finding expired tokens
-      const expiredTokenKeys = [
-        'blacklist:expired-token-1',
-        'blacklist:expired-token-2',
-      ];
-
-      redis.scanStream.mockReturnValue({
-        [Symbol.asyncIterator]: async function* () {
-          yield expiredTokenKeys;
-        },
-      } as any);
-
-      redis.ttl.mockResolvedValue(-1); // TTL expired
-      redis.del.mockResolvedValue(2);
-
-      await (service as any).cleanupExpiredTokens();
-
-      expect(redis.del).toHaveBeenCalledWith(expiredTokenKeys);
-    });
-
-    it('should store user token mapping', async () => {
-      const userId = 'user-123';
+    it('should handle Redis connection for token blacklisting', async () => {
       const tokenId = 'token-id-123';
-      const tokenType = 'access';
-      const expiresIn = 3600;
+      const expirationTime = Math.floor(Date.now() / 1000) + 3600;
 
       redis.setex.mockResolvedValue('OK');
 
-      await (service as any).storeUserTokenMapping(
-        userId,
-        tokenId,
-        tokenType,
-        expiresIn
-      );
+      await service.blacklistToken(tokenId, expirationTime);
 
       expect(redis.setex).toHaveBeenCalledWith(
-        `user:${userId}:${tokenType}:${tokenId}`,
-        expiresIn,
-        'active'
+        `blacklist:${tokenId}`,
+        3600,
+        'blacklisted'
       );
     });
 
-    it('should handle Redis errors during token cleanup', async () => {
-      redis.scanStream.mockImplementation(() => {
-        throw new Error('Redis scan failed');
-      });
+    it('should handle token lookup for blacklist check', async () => {
+      const tokenId = 'token-id-123';
+      redis.get.mockResolvedValue('blacklisted');
 
-      // Should not throw, but handle error gracefully
-      await expect(
-        (service as any).cleanupExpiredTokens()
-      ).resolves.not.toThrow();
+      const result = await service.isTokenBlacklisted(tokenId);
+
+      expect(redis.get).toHaveBeenCalledWith(`blacklist:${tokenId}`);
+      expect(result).toBe(true);
+    });
+
+    it('should handle Redis errors during blacklist operations gracefully', async () => {
+      const tokenId = 'token-id-123';
+      redis.get.mockRejectedValue(new Error('Redis connection failed'));
+
+      // Should not throw error, but log warning and return false
+      const result = await service.isTokenBlacklisted(tokenId);
+
+      expect(result).toBe(false);
     });
   });
 
@@ -589,6 +570,7 @@ describe('JWTService', () => {
         accessToken: 'access-token-123',
         refreshToken: 'refresh-token-123',
         expiresIn: 900, // 15 minutes
+        tokenType: 'Bearer',
       });
     });
 

@@ -407,6 +407,19 @@ export class JWTService implements OnModuleInit, OnModuleDestroy {
       return authHeader.substring(7);
     }
 
+    // Check custom headers (x-access-token)
+    if (request.headers['x-access-token']) {
+      return request.headers['x-access-token'] as string;
+    }
+
+    // Use request.get() method if available for custom headers
+    if (typeof (request as any).get === 'function') {
+      const customHeaderToken = (request as any).get('x-access-token');
+      if (customHeaderToken) {
+        return customHeaderToken;
+      }
+    }
+
     // Check cookies
     if (request.cookies?.accessToken) {
       return request.cookies.accessToken;

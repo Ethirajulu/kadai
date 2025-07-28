@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { SecurityException } from './security-exception';
-import { SecurityErrorResponse, SecurityErrorCode, SecurityErrorSeverity } from './security-error.types';
+import { SecurityErrorCode, SecurityErrorSeverity } from './security-error.types';
 
 /**
  * Global exception filter for security-related errors

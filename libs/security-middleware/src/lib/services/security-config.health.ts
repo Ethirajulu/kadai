@@ -34,6 +34,7 @@ export class SecurityConfigHealthService {
    * Perform comprehensive security configuration health check
    */
   async performHealthCheck(): Promise<SecurityHealthReport> {
+    this.logger.log('Starting security configuration health check');
     const timestamp = new Date().toISOString();
     const environment = this.configService.get('NODE_ENV', 'development');
     const checks: SecurityHealthCheck[] = [];
@@ -80,6 +81,11 @@ export class SecurityConfigHealthService {
     } else if (summary.warning > 0) {
       overall = 'warning';
     }
+
+    this.logger.log(`Security health check completed. Overall status: ${overall}`, {
+      summary,
+      environment,
+    });
 
     return {
       overall,
