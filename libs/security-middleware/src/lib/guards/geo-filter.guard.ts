@@ -14,7 +14,7 @@ export class GeoFilterGuard implements CanActivate {
     private configService: ConfigService,
     private reflector: Reflector,
   ) {
-    this.allowedCountries = this.configService.get('ALLOWED_COUNTRIES', 'IN,US,GB').split(',');
+    this.allowedCountries = this.configService.get('ALLOWED_COUNTRIES', 'IN,US,GB').split(',').filter(Boolean);
     this.blockedCountries = this.configService.get('BLOCKED_COUNTRIES', '').split(',').filter(Boolean);
   }
 

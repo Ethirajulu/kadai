@@ -274,14 +274,19 @@ describe('JWTService', () => {
       const userId = 'user-123';
 
       // Mock token scanning
-      redis.scanStream.mockReturnValue({
+      const mockStream = {
         [Symbol.asyncIterator]: async function* () {
           yield [
             `user:${userId}:access-token-1`,
             `user:${userId}:refresh-token-1`,
           ];
         },
-      } as any);
+        opt: {} as any,
+        _redisCursor: '0',
+        _redisDrained: false,
+        _read: jest.fn(),
+      } as any;
+      redis.scanStream.mockReturnValue(mockStream);
 
       redis.del.mockResolvedValue(2);
 
@@ -679,6 +684,225 @@ describe('JWTService', () => {
 
       await expect(Promise.all(blacklistOps)).resolves.not.toThrow();
       expect(redis.setex).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('Redis Connection Failures and Fallback Behavior', () => {
+    it('should handle blacklistToken when Redis is unavailable', async () => {
+      // Set service redis to null to simulate unavailable Redis
+      (service as any).redis = null;
+
+      const tokenId = 'test-token-id';
+      const expirationTime = Math.floor(Date.now() / 1000) + 3600;
+
+      // Should not throw and should complete gracefully
+      await expect(
+        service.blacklistToken(tokenId, expirationTime)
+      ).resolves.not.toThrow();
+    });
+
+    it('should handle isTokenBlacklisted when Redis connection fails', async () => {
+      redis.get.mockRejectedValue(new Error('Redis connection timeout'));
+
+      const tokenId = 'test-token-id';
+      const result = await service.isTokenBlacklisted(tokenId);
+
+      // Should return false (fail-open) when Redis is unavailable
+      expect(result).toBe(false);
+    });
+
+    it('should handle blacklistToken when Redis operation fails', async () => {
+      redis.setex.mockRejectedValue(new Error('Redis write error'));
+
+      const tokenId = 'test-token-id';
+      const expirationTime = Math.floor(Date.now() / 1000) + 3600;
+
+      await expect(
+        service.blacklistToken(tokenId, expirationTime)
+      ).rejects.toThrow('Token blacklisting failed');
+    });
+
+    it('should handle revokeAllUserTokens when Redis is unavailable', async () => {
+      (service as any).redis = null;
+
+      const userId = 'test-user-id';
+
+      // Should not throw when Redis is unavailable
+      await expect(service.revokeAllUserTokens(userId)).resolves.not.toThrow();
+    });
+
+    it('should handle revokeAllUserTokens when Redis scan fails', async () => {
+      const mockStream = {
+        [Symbol.asyncIterator]: async function* () {
+          throw new Error('Redis scan error');
+          yield []; // Unreachable but satisfies generator requirement
+        },
+        opt: {} as any,
+        _redisCursor: '0',
+        _redisDrained: false,
+        _read: jest.fn(),
+      } as any;
+
+      redis.scanStream.mockReturnValue(mockStream);
+
+      const userId = 'test-user-id';
+
+      await expect(service.revokeAllUserTokens(userId)).rejects.toThrow(
+        'Token revocation failed'
+      );
+    });
+
+    it('should handle revokeAllUserTokens with successful scan but delete failure', async () => {
+      const mockStream = {
+        [Symbol.asyncIterator]: async function* () {
+          yield ['key1', 'key2'];
+        },
+        opt: {} as any,
+        _redisCursor: '0',
+        _redisDrained: false,
+        _read: jest.fn(),
+      } as any;
+
+      redis.scanStream.mockReturnValue(mockStream);
+      redis.del.mockRejectedValue(new Error('Delete failed'));
+
+      const userId = 'test-user-id';
+
+      await expect(service.revokeAllUserTokens(userId)).rejects.toThrow(
+        'Token revocation failed'
+      );
+    });
+
+    it('should handle revokeAllUserTokens with no keys to delete', async () => {
+      const mockStream = {
+        [Symbol.asyncIterator]: async function* () {
+          // Empty iteration - no keys found
+        },
+        opt: {} as any,
+        _redisCursor: '0',
+        _redisDrained: false,
+        _read: jest.fn(),
+      } as any;
+
+      redis.scanStream.mockReturnValue(mockStream);
+
+      const userId = 'test-user-id';
+
+      // Should complete successfully when no keys are found
+      await expect(service.revokeAllUserTokens(userId)).resolves.not.toThrow();
+      expect(redis.del).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Edge Cases in Token Operations', () => {
+    it('should handle parseExpiryToSeconds with invalid format', () => {
+      expect(() => (service as any).parseExpiryToSeconds('invalid')).toThrow(
+        'Invalid expiry format: invalid'
+      );
+    });
+
+    it('should handle parseExpiryToSeconds with valid formats', () => {
+      expect((service as any).parseExpiryToSeconds('30s')).toBe(30);
+      expect((service as any).parseExpiryToSeconds('5m')).toBe(300);
+      expect((service as any).parseExpiryToSeconds('2h')).toBe(7200);
+      expect((service as any).parseExpiryToSeconds('1d')).toBe(86400);
+    });
+
+    it('should handle extractTokenFromRequest with request.get method failing', () => {
+      const mockRequest = {
+        headers: {},
+        get: jest.fn().mockImplementation(() => {
+          throw new Error('Request.get failed');
+        }),
+      } as any;
+
+      // This should not throw an error and should return null gracefully
+      expect(() => {
+        const result = service.extractTokenFromRequest(mockRequest);
+        expect(result).toBeNull();
+      }).not.toThrow();
+    });
+
+    it('should handle refreshTokens with options-based call and rotation disabled', async () => {
+      const refreshToken = 'valid.refresh.token';
+      const mockRefreshPayload = {
+        sub: mockUser.id,
+        email: mockUser.email,
+        role: mockUser.role,
+        name: mockUser.name,
+        jti: 'refresh-jti',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      };
+
+      jwtService.verify.mockReturnValue(mockRefreshPayload);
+      redis.get.mockResolvedValue(null);
+      jwtService.sign.mockReturnValue('new.access.token');
+
+      const options = {
+        rotateRefreshToken: false,
+        validateDevice: false,
+        requireSecureContext: false,
+      };
+
+      const result = await service.refreshTokens(refreshToken, options);
+
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+      // Should not blacklist the old refresh token when rotation is disabled
+      expect(redis.setex).not.toHaveBeenCalled();
+    });
+
+    it('should handle healthCheck with Redis unavailable', async () => {
+      (service as any).redis = null;
+
+      const health = await service.healthCheck();
+
+      expect(health.status).toBe('unhealthy');
+      expect(health.redis).toBe(false);
+    });
+
+    it('should handle healthCheck with Redis ping failure', async () => {
+      redis.ping.mockRejectedValue(new Error('Redis unavailable'));
+
+      const health = await service.healthCheck();
+
+      expect(health.status).toBe('unhealthy');
+      expect(health.redis).toBe(false);
+    });
+
+    it('should handle healthCheck with incomplete JWT config', async () => {
+      // Create service with incomplete config
+      const incompleteConfigService = new JWTService(jwtService, {
+        get: jest.fn().mockImplementation((key: string) => {
+          if (key === 'security.jwt.accessTokenSecret') return undefined;
+          return 'test-value';
+        }),
+      } as any);
+
+      const health = await incompleteConfigService.healthCheck();
+
+      expect(health.status).toBe('unhealthy');
+      expect(health.config).toBe(false);
+    });
+
+    it('should handle logout with missing token payloads', async () => {
+      jwtService.decode
+        .mockReturnValueOnce(null) // access token decode returns null
+        .mockReturnValueOnce(null); // refresh token decode returns null
+
+      await expect(
+        service.logout('invalid.token', 'invalid.refresh')
+      ).resolves.not.toThrow();
+      expect(redis.setex).not.toHaveBeenCalled();
+    });
+
+    it('should handle logout with tokens missing jti or exp', async () => {
+      jwtService.decode
+        .mockReturnValueOnce({ sub: 'user-id' }) // missing jti and exp
+        .mockReturnValueOnce({ sub: 'user-id', jti: 'refresh-jti' }); // missing exp
+
+      await expect(service.logout('token1', 'token2')).resolves.not.toThrow();
+      expect(redis.setex).not.toHaveBeenCalled();
     });
   });
 });

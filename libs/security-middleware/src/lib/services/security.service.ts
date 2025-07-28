@@ -34,8 +34,7 @@ export class SecurityService {
         },
       },
       cors: {
-        origin: this.configService
-          .get('CORS_ORIGINS', 'http://localhost:4200')
+        origin: (this.configService.get('CORS_ORIGINS', 'http://localhost:4200') || 'http://localhost:4200')
           .split(','),
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -80,22 +79,18 @@ export class SecurityService {
         },
       },
       ipWhitelist: {
-        whitelist: this.configService
-          .get('IP_WHITELIST', '')
+        whitelist: (this.configService.get('IP_WHITELIST', '') || '')
           .split(',')
           .filter(Boolean),
-        blacklist: this.configService
-          .get('IP_BLACKLIST', '')
+        blacklist: (this.configService.get('IP_BLACKLIST', '') || '')
           .split(',')
           .filter(Boolean),
         trustProxy: true,
       },
       geoFilter: {
-        allowedCountries: this.configService
-          .get('ALLOWED_COUNTRIES', 'IN,US,GB')
+        allowedCountries: (this.configService.get('ALLOWED_COUNTRIES', 'IN,US,GB') || 'IN,US,GB')
           .split(','),
-        blockedCountries: this.configService
-          .get('BLOCKED_COUNTRIES', '')
+        blockedCountries: (this.configService.get('BLOCKED_COUNTRIES', '') || '')
           .split(',')
           .filter(Boolean),
         fallbackCountry: 'IN',
@@ -285,6 +280,10 @@ export class SecurityService {
         return obj.map(sanitizeObject);
       }
       if (obj && typeof obj === 'object') {
+        // Preserve special object types like Date, RegExp, etc.
+        if (obj instanceof Date || obj instanceof RegExp || obj instanceof Buffer) {
+          return obj;
+        }
         const sanitized: any = {};
         for (const [key, value] of Object.entries(obj)) {
           sanitized[key] = sanitizeObject(value);

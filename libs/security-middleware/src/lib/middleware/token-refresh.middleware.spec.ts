@@ -1089,6 +1089,227 @@ describe('TokenRefreshMiddleware', () => {
       // Cleanup
       process.env.NODE_ENV = originalNodeEnv;
     });
+
+    it('should handle errors when extractRefreshToken fails', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
+        },
+        get: jest.fn().mockImplementation(() => {
+          throw new Error('Request.get failed');
+        }),
+      });
+      const response = createMockResponse();
+      const next = createMockNext();
+
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+
+      // Act
+      await middleware.use(request, response as Response, next);
+
+      // Assert - should continue gracefully without refresh
+      expect(next).toHaveBeenCalledWith();
+      expect(jwtService.refreshTokens).not.toHaveBeenCalled();
+    });
+
+    it('should handle token refresh when payload is missing sub', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
+          'x-refresh-token': TEST_CONSTANTS.VALID_REFRESH_TOKEN,
+        },
+      });
+      const response = createMockResponse();
+      const next = createMockNext();
+
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue({ email: 'test@test.com' }); // Missing sub
+
+      // Act
+      await middleware.use(request, response as Response, next);
+
+      // Assert - should continue without refresh
+      expect(next).toHaveBeenCalledWith();
+      expect(jwtService.refreshTokens).not.toHaveBeenCalled();
+    });
+
+    it('should handle token refresh when payload is null', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
+          'x-refresh-token': TEST_CONSTANTS.VALID_REFRESH_TOKEN,
+        },
+      });
+      const response = createMockResponse();
+      const next = createMockNext();
+
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue(null);
+
+      // Act
+      await middleware.use(request, response as Response, next);
+
+      // Assert - should continue without refresh
+      expect(next).toHaveBeenCalledWith();
+      expect(jwtService.refreshTokens).not.toHaveBeenCalled();
+    });
+
+    it('should handle network errors during token refresh', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
+          'x-refresh-token': TEST_CONSTANTS.VALID_REFRESH_TOKEN,
+        },
+      });
+      const response = createMockResponse();
+      const next = createMockNext();
+
+      const mockPayload = createMockTokenPayload();
+
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue(mockPayload);
+      jwtService.refreshTokens.mockRejectedValue(new Error('Network timeout'));
+
+      // Act
+      await middleware.use(request, response as Response, next);
+
+      // Assert - should continue gracefully
+      expect(next).toHaveBeenCalledWith();
+      expect(response.clearCookie).not.toHaveBeenCalled();
+    });
+
+    it('should handle generic refresh errors without revoked keyword', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
+          'x-refresh-token': TEST_CONSTANTS.VALID_REFRESH_TOKEN,
+        },
+      });
+      const response = createMockResponse();
+      const next = createMockNext();
+
+      const mockPayload = createMockTokenPayload();
+
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue(mockPayload);
+      jwtService.refreshTokens.mockRejectedValue(new Error('Random error'));
+
+      // Act
+      await middleware.use(request, response as Response, next);
+
+      // Assert - should continue without clearing tokens
+      expect(next).toHaveBeenCalledWith();
+      expect(response.clearCookie).not.toHaveBeenCalled();
+    });
+
+    it('should clear tokens for invalid refresh token errors', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
+          'x-refresh-token': TEST_CONSTANTS.VALID_REFRESH_TOKEN,
+        },
+      });
+      const response = createMockResponse();
+      const next = createMockNext();
+
+      const mockPayload = createMockTokenPayload();
+
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue(mockPayload);
+      jwtService.refreshTokens.mockRejectedValue(new Error('Invalid refresh token'));
+
+      // Act
+      await middleware.use(request, response as Response, next);
+
+      // Assert - should clear tokens
+      expect(next).toHaveBeenCalledWith();
+      expect(response.clearCookie).toHaveBeenCalledWith('accessToken');
+      expect(response.clearCookie).toHaveBeenCalledWith('refreshToken');
+      expect(response.setHeader).toHaveBeenCalledWith('X-Clear-Tokens', 'true');
+    });
+
+    it('should clear tokens for revoked token errors', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
+          'x-refresh-token': TEST_CONSTANTS.VALID_REFRESH_TOKEN,
+        },
+      });
+      const response = createMockResponse();
+      const next = createMockNext();
+
+      const mockPayload = createMockTokenPayload();
+
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue(mockPayload);
+      jwtService.refreshTokens.mockRejectedValue(new Error('Token has been revoked'));
+
+      // Act
+      await middleware.use(request, response as Response, next);
+
+      // Assert - should clear tokens
+      expect(next).toHaveBeenCalledWith();
+      expect(response.clearCookie).toHaveBeenCalledWith('accessToken');
+      expect(response.clearCookie).toHaveBeenCalledWith('refreshToken');
+      expect(response.setHeader).toHaveBeenCalledWith('X-Clear-Tokens', 'true');
+    });
+
+    it('should handle non-Error objects thrown during refresh', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: `Bearer ${TEST_CONSTANTS.VALID_ACCESS_TOKEN}`,
+          'x-refresh-token': TEST_CONSTANTS.VALID_REFRESH_TOKEN,
+        },
+      });
+      const response = createMockResponse();
+      const next = createMockNext();
+
+      const mockPayload = createMockTokenPayload();
+
+      jwtService.extractTokenFromRequest.mockReturnValue(TEST_CONSTANTS.VALID_ACCESS_TOKEN);
+      jwtService.isTokenNearExpiration.mockReturnValue(true);
+      jwtService.decodeToken.mockReturnValue(mockPayload);
+      jwtService.refreshTokens.mockRejectedValue('String error');
+
+      // Act
+      await middleware.use(request, response as Response, next);
+
+      // Assert - should continue gracefully
+      expect(next).toHaveBeenCalledWith();
+      expect(response.clearCookie).not.toHaveBeenCalled();
+    });
+
+    it('should handle top-level middleware errors gracefully', async () => {
+      // Arrange
+      const request = createMockRequest();
+      const response = createMockResponse();
+      const next = createMockNext();
+
+      jwtService.extractTokenFromRequest.mockImplementation(() => {
+        throw new Error('Service failure');
+      });
+
+      // Act
+      await middleware.use(request, response as Response, next);
+
+      // Assert - should continue despite error
+      expect(next).toHaveBeenCalledWith();
+    });
   });
 
   describe('RefreshTokenEndpointMiddleware', () => {

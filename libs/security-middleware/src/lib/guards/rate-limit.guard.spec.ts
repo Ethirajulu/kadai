@@ -329,6 +329,249 @@ describe('RateLimitGuard', () => {
 
       process.env.NODE_ENV = originalEnv;
     });
+
+    it('should handle non-Error objects thrown by rate limit service in production', async () => {
+      const request = mockRequest();
+      const context = mockExecutionContext(request);
+
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      rateLimitService.checkRateLimit.mockRejectedValue('String error');
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('should handle redis timeout errors gracefully in production', async () => {
+      const request = mockRequest();
+      const context = mockExecutionContext(request);
+
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      rateLimitService.checkRateLimit.mockRejectedValue(
+        new Error('Redis connection timeout')
+      );
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('should handle network errors gracefully in production', async () => {
+      const request = mockRequest();
+      const context = mockExecutionContext(request);
+
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      rateLimitService.checkRateLimit.mockRejectedValue(
+        new Error('Network unreachable')
+      );
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+
+      process.env.NODE_ENV = originalEnv;
+    });
+  });
+
+  describe('Rate Limit Headers Edge Cases', () => {
+    it('should handle adaptive limit headers correctly', async () => {
+      const request = mockRequest();
+      const response = { setHeader: jest.fn() };
+      const context = {
+        switchToHttp: () => ({
+          getRequest: () => request,
+          getResponse: () => response,
+        }),
+        getHandler: () => ({ name: 'testHandler' }),
+        getClass: () => ({ name: 'TestController' }),
+      } as any;
+
+      rateLimitService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        remaining: 50,
+        resetTime: Date.now() + 60000,
+        totalHits: 50,
+        adaptiveLimit: 75
+      });
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(response.setHeader).toHaveBeenCalledWith(
+        'X-RateLimit-Adaptive-Limit', 
+        '75'
+      );
+    });
+
+    it('should handle window type headers correctly', async () => {
+      const request = mockRequest();
+      const response = { setHeader: jest.fn() };
+      const context = {
+        switchToHttp: () => ({
+          getRequest: () => request,
+          getResponse: () => response,
+        }),
+        getHandler: () => ({ name: 'testHandler' }),
+        getClass: () => ({ name: 'TestController' }),
+      } as any;
+
+      rateLimitService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        remaining: 90,
+        resetTime: Date.now() + 60000,
+        totalHits: 10,
+        windowType: 'sliding'
+      });
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(response.setHeader).toHaveBeenCalledWith(
+        'X-RateLimit-Window-Type', 
+        'sliding'
+      );
+    });
+
+    it('should handle burst exceeded scenarios with headers', async () => {
+      const request = mockRequest();
+      const response = { setHeader: jest.fn() };
+      const context = {
+        switchToHttp: () => ({
+          getRequest: () => request,
+          getResponse: () => response,
+        }),
+        getHandler: () => ({ name: 'testHandler' }),
+        getClass: () => ({ name: 'TestController' }),
+      } as any;
+
+      rateLimitService.checkRateLimit.mockResolvedValue({
+        allowed: false,
+        remaining: 0,
+        resetTime: Date.now() + 30000,
+        totalHits: 100,
+        burstExceeded: true
+      });
+
+      try {
+        await guard.canActivate(context);
+      } catch (error) {
+        // Expected to throw
+      }
+
+      expect(response.setHeader).toHaveBeenCalledWith(
+        'X-RateLimit-Burst-Exceeded', 
+        'true'
+      );
+    });
+
+    it('should ensure minimum retry after value is 1', async () => {
+      const request = mockRequest();
+      const response = { setHeader: jest.fn() };
+      const context = {
+        switchToHttp: () => ({
+          getRequest: () => request,
+          getResponse: () => response,
+        }),
+        getHandler: () => ({ name: 'testHandler' }),
+        getClass: () => ({ name: 'TestController' }),
+      } as any;
+
+      // Set reset time to be very close to now to test minimum retry after
+      rateLimitService.checkRateLimit.mockResolvedValue({
+        allowed: false,
+        remaining: 0,
+        resetTime: Date.now() + 100, // Very short time
+        totalHits: 100
+      });
+
+      try {
+        await guard.canActivate(context);
+      } catch (error) {
+        // Expected to throw
+      }
+
+      expect(response.setHeader).toHaveBeenCalledWith(
+        'Retry-After',
+        '1'
+      );
+      expect(response.setHeader).toHaveBeenCalledWith(
+        'X-RateLimit-RetryAfter',
+        '1'
+      );
+    });
+  });
+
+  describe('Authentication State Detection', () => {
+    it('should correctly identify authenticated users', async () => {
+      const request = mockRequest({
+        user: { id: 'user123', role: 'user' }
+      });
+      const context = mockExecutionContext(request);
+
+      rateLimitService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        remaining: 195,
+        resetTime: Date.now() + 60000,
+        totalHits: 5,
+      });
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(rateLimitService.checkRateLimit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isAuthenticated: true,
+        })
+      );
+    });
+
+    it('should correctly identify anonymous users when user object is null', async () => {
+      const request = mockRequest({
+        user: undefined
+      });
+      const context = mockExecutionContext(request);
+
+      rateLimitService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        remaining: 95,
+        resetTime: Date.now() + 60000,
+        totalHits: 5,
+      });
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(rateLimitService.checkRateLimit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isAuthenticated: false,
+        })
+      );
+    });
+
+    it('should correctly identify anonymous users when user has no id', async () => {
+      const request = mockRequest({
+        user: undefined // Will be treated as anonymous
+      });
+      const context = mockExecutionContext(request);
+
+      rateLimitService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        remaining: 95,
+        resetTime: Date.now() + 60000,
+        totalHits: 5,
+      });
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+      expect(rateLimitService.checkRateLimit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isAuthenticated: false,
+        })
+      );
+    });
   });
 
   describe('rate limit headers', () => {

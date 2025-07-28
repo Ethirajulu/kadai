@@ -722,6 +722,178 @@ describe('JwtGuard', () => {
     });
   });
 
+  describe('Device Validation Edge Cases', () => {
+    it('should succeed when device validation is enabled but payload has no deviceId', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: TEST_CONSTANTS.VALID_TOKEN,
+          'x-device-id': 'test-device-123'
+        }
+      });
+      const context = createMockExecutionContext(request);
+      const mockPayload = createMockTokenPayload({ deviceId: undefined });
+
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
+      reflector.getAllAndOverride.mockReturnValue({ 
+        requireAuth: true,
+        validateDevice: true 
+      });
+
+      // Act
+      const result = await guard.canActivate(context);
+
+      // Assert - should succeed because payload.deviceId is undefined
+      expect(result).toBe(true);
+      expect(request.user).toEqual(mockPayload);
+    });
+
+    it('should succeed when device validation is enabled but no request device header', async () => {
+      // Arrange
+      const request = createMockRequest({
+        headers: {
+          authorization: TEST_CONSTANTS.VALID_TOKEN,
+          // No x-device-id header
+        }
+      });
+      const context = createMockExecutionContext(request);
+      const mockPayload = createMockTokenPayload({ deviceId: 'device-456' });
+
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
+      reflector.getAllAndOverride.mockReturnValue({ 
+        requireAuth: true,
+        validateDevice: true 
+      });
+
+      // Act & Assert - should fail due to missing device header
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        UnauthorizedException
+      );
+    });
+  });
+
+  describe('Generic Error Handling', () => {
+    it('should handle unexpected non-JWT errors as generic authentication failures', async () => {
+      // Arrange
+      const request = createMockRequest();
+      const context = createMockExecutionContext(request);
+
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.validateAccessToken.mockRejectedValue(
+        new Error('Database connection failed')
+      );
+      reflector.getAllAndOverride.mockReturnValue({ requireAuth: true });
+
+      // Act & Assert - should be converted to UnauthorizedException
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        UnauthorizedException
+      );
+    });
+
+    it('should handle network timeout errors as generic authentication failures', async () => {
+      // Arrange
+      const request = createMockRequest();
+      const context = createMockExecutionContext(request);
+
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.validateAccessToken.mockRejectedValue(
+        new Error('Request timeout')
+      );
+      reflector.getAllAndOverride.mockReturnValue({ requireAuth: true });
+
+      // Act & Assert
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        UnauthorizedException
+      );
+    });
+
+    it('should handle malformed JWT payload errors', async () => {
+      // Arrange
+      const request = createMockRequest();
+      const context = createMockExecutionContext(request);
+
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.validateAccessToken.mockRejectedValue(
+        new Error('Malformed payload')
+      );
+      reflector.getAllAndOverride.mockReturnValue({ requireAuth: true });
+
+      // Act & Assert
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        UnauthorizedException
+      );
+    });
+
+    it('should handle non-Error thrown objects', async () => {
+      // Arrange
+      const request = createMockRequest();
+      const context = createMockExecutionContext(request);
+
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.validateAccessToken.mockRejectedValue('String error');
+      reflector.getAllAndOverride.mockReturnValue({ requireAuth: true });
+
+      // Act & Assert
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        UnauthorizedException
+      );
+    });
+  });
+
+  describe('HTTPS Context Validation', () => {
+    it('should succeed with secure context when requireSecureContext is true and request is https', async () => {
+      // Arrange
+      const request = createMockRequest({
+        secure: false,
+        protocol: 'https'
+      });
+      const context = createMockExecutionContext(request);
+      const mockPayload = createMockTokenPayload();
+
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
+      reflector.getAllAndOverride.mockReturnValue({ 
+        requireAuth: true,
+        requireSecureContext: true 
+      });
+
+      // Act
+      const result = await guard.canActivate(context);
+
+      // Assert
+      expect(result).toBe(true);
+    });
+
+    it('should succeed with secure context when requireSecureContext is true and request.secure is true', async () => {
+      // Arrange
+      const request = createMockRequest({
+        secure: true,
+        protocol: 'http'
+      });
+      const context = createMockExecutionContext(request);
+      const mockPayload = createMockTokenPayload();
+
+      jwtService.extractTokenFromRequest.mockReturnValue('valid.jwt.token');
+      jwtService.validateAccessToken.mockResolvedValue(mockPayload);
+      jwtService.isTokenNearExpiration.mockReturnValue(false);
+      reflector.getAllAndOverride.mockReturnValue({ 
+        requireAuth: true,
+        requireSecureContext: true 
+      });
+
+      // Act
+      const result = await guard.canActivate(context);
+
+      // Assert
+      expect(result).toBe(true);
+    });
+  });
+
   describe('Optional Authentication', () => {
     it('should allow requests without token when auth is optional', async () => {
       // Arrange

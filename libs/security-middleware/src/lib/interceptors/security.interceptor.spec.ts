@@ -581,5 +581,109 @@ describe('SecurityInterceptor', () => {
         result.subscribe();
       }).not.toThrow();
     });
+
+    it('should handle response object validation errors', () => {
+      mockExecutionContext.switchToHttp = jest.fn().mockReturnValue({
+        getRequest: jest.fn().mockReturnValue(mockRequest),
+        getResponse: jest.fn().mockReturnValue(null),
+      });
+
+      expect(() => {
+        interceptor.intercept(mockExecutionContext, mockCallHandler);
+      }).toThrow('Invalid response object');
+    });
+
+    it('should handle response object without setHeader method', () => {
+      const invalidResponse = {
+        statusCode: 200,
+        removeHeader: jest.fn(),
+      };
+
+      mockExecutionContext.switchToHttp = jest.fn().mockReturnValue({
+        getRequest: jest.fn().mockReturnValue(mockRequest),
+        getResponse: jest.fn().mockReturnValue(invalidResponse),
+      });
+
+      expect(() => {
+        interceptor.intercept(mockExecutionContext, mockCallHandler);
+      }).toThrow('Invalid response object');
+    });
+
+    it('should handle Math.random edge cases in request ID generation', () => {
+      const originalMathRandom = Math.random;
+      Math.random = jest.fn().mockReturnValue(0); // Edge case: minimum random value
+
+      const requestId = (interceptor as any).generateRequestId();
+      expect(requestId).toMatch(/^req_\d+_/);
+
+      Math.random = jest.fn().mockReturnValue(0.999999999); // Edge case: maximum random value
+      const requestId2 = (interceptor as any).generateRequestId();
+      expect(requestId2).toMatch(/^req_\d+_/);
+
+      Math.random = originalMathRandom;
+    });
+
+    it('should handle security logging with missing request properties', () => {
+      const minimalRequest = {
+        method: 'GET',
+        path: '/test',
+        ip: '127.0.0.1',
+      } as SecurityRequest;
+
+      mockExecutionContext.switchToHttp = jest.fn().mockReturnValue({
+        getRequest: jest.fn().mockReturnValue(minimalRequest),
+        getResponse: jest.fn().mockReturnValue(mockResponse),
+      });
+
+      const result = interceptor.intercept(mockExecutionContext, mockCallHandler);
+      result.subscribe();
+
+      expect(mockCallHandler.handle).toHaveBeenCalled();
+    });
+
+    it('should handle error status comparison edge cases', () => {
+      const errorWith429 = new Error('Too Many Requests');
+      (errorWith429 as any).status = 429;
+
+      mockCallHandler.handle = jest
+        .fn()
+        .mockReturnValue(throwError(() => errorWith429));
+
+      const result = interceptor.intercept(mockExecutionContext, mockCallHandler);
+
+      result.subscribe({
+        error: (error) => {
+          expect(error).toBe(errorWith429);
+        },
+      });
+
+      expect(securityService.logSecurityEvent).toHaveBeenCalledWith(
+        'RATE_LIMIT_EXCEEDED',
+        {
+          path: '/api/test',
+          method: 'GET',
+        },
+        mockRequest
+      );
+    });
+
+    it('should handle error status as undefined', () => {
+      const errorWithUndefinedStatus = new Error('No status');
+      (errorWithUndefinedStatus as any).status = undefined;
+
+      mockCallHandler.handle = jest
+        .fn()
+        .mockReturnValue(throwError(() => errorWithUndefinedStatus));
+
+      const result = interceptor.intercept(mockExecutionContext, mockCallHandler);
+
+      result.subscribe({
+        error: (error) => {
+          expect(error).toBe(errorWithUndefinedStatus);
+        },
+      });
+
+      expect(securityService.logSecurityEvent).not.toHaveBeenCalled();
+    });
   });
 });
