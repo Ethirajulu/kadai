@@ -8,7 +8,7 @@ import {
 import { Observable } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { SecurityService } from '../services/security.service';
-import { SecurityRequest } from '../types/security.types';
+import { SecurityRequest, SecurityEventType, SecurityEventSeverity } from '../types/security.types';
 
 @Injectable()
 export class SecurityInterceptor implements NestInterceptor {
@@ -39,32 +39,38 @@ export class SecurityInterceptor implements NestInterceptor {
         // Log security events for specific error types
         if (error.status === 401) {
           this.securityService.logSecurityEvent(
-            'UNAUTHORIZED_ACCESS',
+            SecurityEventType.ACCESS_DENIED,
+            SecurityEventSeverity.HIGH,
+            'Unauthorized access attempt',
+            request,
             {
               path: request.path,
               method: request.method,
               error: error.message,
-            },
-            request
+            }
           );
         } else if (error.status === 403) {
           this.securityService.logSecurityEvent(
-            'FORBIDDEN_ACCESS',
+            SecurityEventType.PERMISSION_DENIED,
+            SecurityEventSeverity.HIGH,
+            'Forbidden access attempt',
+            request,
             {
               path: request.path,
               method: request.method,
               error: error.message,
-            },
-            request
+            }
           );
         } else if (error.status === 429) {
           this.securityService.logSecurityEvent(
-            'RATE_LIMIT_EXCEEDED',
+            SecurityEventType.RATE_LIMIT_EXCEEDED,
+            SecurityEventSeverity.MEDIUM,
+            'Rate limit exceeded',
+            request,
             {
               path: request.path,
               method: request.method,
-            },
-            request
+            }
           );
         }
 

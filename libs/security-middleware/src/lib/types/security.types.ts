@@ -360,3 +360,355 @@ export interface JWTSecurityOptions {
 export interface SecurityConfigWithJWT extends SecurityConfig {
   jwt?: JWTConfig;
 }
+
+// Security Audit and Monitoring Types
+export enum SecurityEventType {
+  // Authentication Events
+  LOGIN_SUCCESS = 'LOGIN_SUCCESS',
+  LOGIN_FAILURE = 'LOGIN_FAILURE',
+  LOGOUT = 'LOGOUT',
+  TOKEN_REFRESH = 'TOKEN_REFRESH',
+  TOKEN_BLACKLIST = 'TOKEN_BLACKLIST',
+  TOKEN_EXPIRED = 'TOKEN_EXPIRED',
+  TOKEN_INVALID = 'TOKEN_INVALID',
+  
+  // Authorization Events
+  ACCESS_DENIED = 'ACCESS_DENIED',
+  PERMISSION_DENIED = 'PERMISSION_DENIED',
+  ROLE_ESCALATION_ATTEMPT = 'ROLE_ESCALATION_ATTEMPT',
+  
+  // Rate Limiting Events
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  BURST_LIMIT_EXCEEDED = 'BURST_LIMIT_EXCEEDED',
+  ADAPTIVE_RATE_LIMIT_TRIGGERED = 'ADAPTIVE_RATE_LIMIT_TRIGGERED',
+  
+  // IP and Geo Filtering Events
+  IP_BLOCKED = 'IP_BLOCKED',
+  IP_WHITELISTED = 'IP_WHITELISTED',
+  GEO_BLOCKED = 'GEO_BLOCKED',
+  GEO_ANOMALY = 'GEO_ANOMALY',
+  
+  // Validation and Input Events
+  VALIDATION_FAILURE = 'VALIDATION_FAILURE',
+  MALICIOUS_INPUT_DETECTED = 'MALICIOUS_INPUT_DETECTED',
+  SQL_INJECTION_ATTEMPT = 'SQL_INJECTION_ATTEMPT',
+  XSS_ATTEMPT = 'XSS_ATTEMPT',
+  
+  // System Events
+  SECURITY_CONFIG_CHANGED = 'SECURITY_CONFIG_CHANGED',
+  CIRCUIT_BREAKER_OPEN = 'CIRCUIT_BREAKER_OPEN',
+  REDIS_CONNECTION_FAILURE = 'REDIS_CONNECTION_FAILURE',
+  
+  // Threat Detection Events
+  SUSPICIOUS_ACTIVITY = 'SUSPICIOUS_ACTIVITY',
+  BRUTE_FORCE_ATTEMPT = 'BRUTE_FORCE_ATTEMPT',
+  ACCOUNT_ENUMERATION = 'ACCOUNT_ENUMERATION',
+  PASSWORD_SPRAY_ATTACK = 'PASSWORD_SPRAY_ATTACK',
+  CREDENTIAL_STUFFING = 'CREDENTIAL_STUFFING',
+  
+  // Data Protection Events
+  SENSITIVE_DATA_ACCESS = 'SENSITIVE_DATA_ACCESS',
+  DATA_EXFILTRATION_ATTEMPT = 'DATA_EXFILTRATION_ATTEMPT',
+  UNAUTHORIZED_DATA_MODIFICATION = 'UNAUTHORIZED_DATA_MODIFICATION',
+}
+
+export enum SecurityEventSeverity {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+export enum SecurityEventCategory {
+  AUTHENTICATION = 'AUTHENTICATION',
+  AUTHORIZATION = 'AUTHORIZATION',
+  RATE_LIMITING = 'RATE_LIMITING',
+  FILTERING = 'FILTERING',
+  VALIDATION = 'VALIDATION',
+  SYSTEM = 'SYSTEM',
+  THREAT_DETECTION = 'THREAT_DETECTION',
+  DATA_PROTECTION = 'DATA_PROTECTION',
+}
+
+export interface SecurityAuditLog {
+  id: string;
+  timestamp: Date;
+  eventType: SecurityEventType;
+  severity: SecurityEventSeverity;
+  category: SecurityEventCategory;
+  message: string;
+  
+  // Request context
+  requestId?: string;
+  sessionId?: string;
+  userId?: string;
+  username?: string;
+  userRole?: string;
+  
+  // Network context
+  sourceIp: string;
+  userAgent?: string;
+  requestMethod?: string;
+  requestPath?: string;
+  requestHeaders?: Record<string, string>;
+  
+  // Geographic context
+  country?: string;
+  region?: string;
+  city?: string;
+  
+  // Additional context
+  metadata?: Record<string, any>;
+  errorDetails?: string;
+  stackTrace?: string;
+  
+  // Correlation
+  correlationId?: string;
+  parentEventId?: string;
+  
+  // Processing
+  acknowledged: boolean;
+  acknowledgedBy?: string;
+  acknowledgedAt?: Date;
+  resolved: boolean;
+  resolvedBy?: string;
+  resolvedAt?: Date;
+  notes?: string;
+}
+
+export interface SecurityAlert {
+  id: string;
+  timestamp: Date;
+  title: string;
+  description: string;
+  severity: SecurityEventSeverity;
+  category: SecurityEventCategory;
+  eventType: SecurityEventType;
+  
+  // Alert details
+  triggerCount: number;
+  threshold?: number;
+  timeWindow?: number; // in minutes
+  
+  // Related events
+  relatedEvents: string[]; // Array of audit log IDs
+  correlationId?: string;
+  
+  // Status
+  status: 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED' | 'FALSE_POSITIVE';
+  acknowledgedBy?: string;
+  acknowledgedAt?: Date;
+  resolvedBy?: string;
+  resolvedAt?: Date;
+  
+  // Response actions
+  actionsTaken?: string[];
+  autoResponseEnabled: boolean;
+  
+  // Contact information
+  notificationsSent: string[]; // email addresses or phone numbers
+  escalationLevel: number;
+}
+
+export interface ThreatIndicator {
+  id: string;
+  timestamp: Date;
+  type: 'IP' | 'USER' | 'PATTERN' | 'GEOLOCATION' | 'USER_AGENT';
+  value: string;
+  threatScore: number; // 0-100
+  confidence: number; // 0-100
+  
+  // Detection details
+  detectionRules: string[];
+  evidenceEvents: string[]; // Array of audit log IDs
+  
+  // Metadata
+  firstSeen: Date;
+  lastSeen: Date;
+  occurrenceCount: number;
+  
+  // Status
+  status: 'ACTIVE' | 'EXPIRED' | 'BLOCKED' | 'WHITELISTED';
+  expiresAt?: Date;
+  
+  // Response
+  blockingEnabled: boolean;
+  blockingReason?: string;
+  whitelistReason?: string;
+}
+
+export interface SecurityMetrics {
+  timestamp: Date;
+  timeWindow: number; // in minutes
+  
+  // Event counts by type
+  eventCounts: Record<SecurityEventType, number>;
+  
+  // Event counts by severity
+  severityCounts: Record<SecurityEventSeverity, number>;
+  
+  // Authentication metrics
+  totalLogins: number;
+  successfulLogins: number;
+  failedLogins: number;
+  uniqueUsers: number;
+  
+  // Rate limiting metrics
+  rateLimitHits: number;
+  rateLimitBlocks: number;
+  adaptiveAdjustments: number;
+  
+  // Geographic distribution
+  topCountries: Array<{ country: string; count: number }>;
+  blockedCountries: Array<{ country: string; count: number }>;
+  
+  // IP filtering metrics
+  ipBlocks: number;
+  uniqueBlockedIPs: number;
+  whitelistHits: number;
+  
+  // Threat detection metrics
+  threatsDetected: number;
+  threatsBlocked: number;
+  falsePositives: number;
+  
+  // System health
+  redisConnectionStatus: 'HEALTHY' | 'DEGRADED' | 'DOWN';
+  circuitBreakerStatus: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  averageResponseTime: number;
+  errorRate: number;
+}
+
+export interface SecurityDashboardData {
+  overview: {
+    totalEvents: number;
+    activeAlerts: number;
+    threatsDetected: number;
+    systemHealth: 'HEALTHY' | 'WARNING' | 'CRITICAL';
+  };
+  
+  recentEvents: SecurityAuditLog[];
+  activeAlerts: SecurityAlert[];
+  topThreats: ThreatIndicator[];
+  metrics: SecurityMetrics;
+  
+  // Time series data for charts
+  eventTimeSeries: Array<{
+    timestamp: Date;
+    eventType: SecurityEventType;
+    count: number;
+  }>;
+  
+  alertTimeSeries: Array<{
+    timestamp: Date;
+    severity: SecurityEventSeverity;
+    count: number;
+  }>;
+  
+  geoData: Array<{
+    country: string;
+    latitude: number;
+    longitude: number;
+    eventCount: number;
+    threatLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  }>;
+}
+
+export interface SecurityMonitoringConfig {
+  audit: {
+    enabled: boolean;
+    logLevel: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+    maxLogSize: number; // in MB
+    retentionDays: number;
+    storageBackend: 'FILE' | 'DATABASE' | 'ELASTICSEARCH' | 'CLOUD';
+    batchSize: number;
+    flushInterval: number; // in seconds
+  };
+  
+  alerting: {
+    enabled: boolean;
+    channels: Array<'EMAIL' | 'SMS' | 'WEBHOOK' | 'SLACK'>;
+    emailConfig?: {
+      smtpHost: string;
+      smtpPort: number;
+      username: string;
+      password: string;
+      fromAddress: string;
+      recipients: string[];
+    };
+    webhookConfig?: {
+      url: string;
+      headers?: Record<string, string>;
+      timeout: number;
+    };
+    rateLimiting: {
+      maxAlertsPerMinute: number;
+      cooldownPeriod: number; // in minutes
+    };
+  };
+  
+  threatDetection: {
+    enabled: boolean;
+    rules: Array<{
+      id: string;
+      name: string;
+      description: string;
+      eventTypes: SecurityEventType[];
+      conditions: Array<{
+        field: string;
+        operator: 'equals' | 'contains' | 'regex' | 'greater_than' | 'less_than';
+        value: any;
+      }>;
+      threshold: number;
+      timeWindow: number; // in minutes
+      severity: SecurityEventSeverity;
+      autoBlock: boolean;
+      blockDuration?: number; // in minutes
+    }>;
+    
+    correlationRules: Array<{
+      id: string;
+      name: string;
+      description: string;
+      eventSequence: SecurityEventType[];
+      maxTimeSpan: number; // in minutes
+      minOccurrences: number;
+      severity: SecurityEventSeverity;
+    }>;
+    
+    ipReputationConfig?: {
+      enabled: boolean;
+      providers: string[];
+      cacheTimeout: number; // in minutes
+      scoreThreshold: number; // 0-100
+    };
+  };
+  
+  aggregation: {
+    enabled: boolean;
+    backends: Array<'ELASTICSEARCH' | 'SPLUNK' | 'DATADOG' | 'CUSTOM'>;
+    elasticsearch?: {
+      hosts: string[];
+      username?: string;
+      password?: string;
+      index: string;
+      mappingTemplate?: string;
+    };
+    custom?: {
+      endpoint: string;
+      headers?: Record<string, string>;
+      batchSize: number;
+      retryConfig: {
+        maxRetries: number;
+        backoffFactor: number;
+      };
+    };
+  };
+  
+  dashboard: {
+    enabled: boolean;
+    refreshInterval: number; // in seconds
+    historicalDataDays: number;
+    maxEventsPerQuery: number;
+  };
+}

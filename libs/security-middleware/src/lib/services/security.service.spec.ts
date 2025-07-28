@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SecurityService } from './security.service';
-import { SecurityRequest } from '../types/security.types';
+import { SecurityRequest, SecurityEventType, SecurityEventSeverity } from '../types/security.types';
+import { SecurityAuditService } from './security-audit.service';
 
 // Mock express-validator
 const mockValidationChain = {
@@ -29,8 +31,18 @@ const mockValidationResult = validationResult as jest.MockedFunction<typeof vali
 
 describe('SecurityService', () => {
   let service: SecurityService;
+  let mockEventEmitter: jest.Mocked<EventEmitter2>;
+  let mockAuditService: jest.Mocked<SecurityAuditService>;
 
   beforeEach(async () => {
+    mockEventEmitter = {
+      emit: jest.fn(),
+    } as any;
+
+    mockAuditService = {
+      logSecurityEvent: jest.fn().mockResolvedValue('audit-log-id'),
+    } as any;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SecurityService,
@@ -49,6 +61,14 @@ describe('SecurityService', () => {
               return config[key] || defaultValue;
             }),
           },
+        },
+        {
+          provide: EventEmitter2,
+          useValue: mockEventEmitter,
+        },
+        {
+          provide: SecurityAuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();
@@ -238,21 +258,27 @@ describe('SecurityService', () => {
   });
 
   describe('logSecurityEvent', () => {
-    it('should log security events with details', () => {
+    it('should log security events with details', async () => {
       const logSpy = jest.spyOn(service['logger'], 'warn');
 
-      service.logSecurityEvent('TEST_EVENT', { detail: 'test' });
+      await service.logSecurityEvent(
+        SecurityEventType.VALIDATION_FAILURE,
+        SecurityEventSeverity.MEDIUM,
+        'Test security event'
+      );
 
       expect(logSpy).toHaveBeenCalledWith(
-        'Security Event: TEST_EVENT',
+        expect.stringContaining('Security Event: VALIDATION_FAILURE'),
         expect.objectContaining({
-          event: 'TEST_EVENT',
-          details: { detail: 'test' },
+          eventType: SecurityEventType.VALIDATION_FAILURE,
+          severity: SecurityEventSeverity.MEDIUM,
+          message: 'Test security event',
         })
       );
+      expect(mockAuditService.logSecurityEvent).toHaveBeenCalled();
     });
 
-    it('should include request information when provided', () => {
+    it('should include request information when provided', async () => {
       const logSpy = jest.spyOn(service['logger'], 'warn');
       const req = {
         headers: { 'user-agent': 'test-agent' },
@@ -260,29 +286,49 @@ describe('SecurityService', () => {
         ipInfo: { country: 'US' },
       } as SecurityRequest;
 
-      service.logSecurityEvent('TEST_EVENT', { detail: 'test' }, req);
+      await service.logSecurityEvent(
+        SecurityEventType.ACCESS_DENIED,
+        SecurityEventSeverity.HIGH,
+        'Access denied test',
+        req,
+        { detail: 'test' }
+      );
 
       expect(logSpy).toHaveBeenCalledWith(
-        'Security Event: TEST_EVENT',
+        expect.stringContaining('Security Event: ACCESS_DENIED'),
         expect.objectContaining({
           clientIP: '127.0.0.1',
           country: 'US',
           userAgent: 'test-agent',
         })
       );
+      expect(mockAuditService.logSecurityEvent).toHaveBeenCalledWith(
+        SecurityEventType.ACCESS_DENIED,
+        SecurityEventSeverity.HIGH,
+        'Access denied test',
+        req,
+        { detail: 'test' },
+        undefined
+      );
     });
 
-    it('should handle request without ipInfo', () => {
+    it('should handle request without ipInfo', async () => {
       const logSpy = jest.spyOn(service['logger'], 'warn');
       const req = {
         headers: { 'user-agent': 'test-agent' },
         connection: { remoteAddress: '127.0.0.1' },
       } as SecurityRequest;
 
-      service.logSecurityEvent('TEST_EVENT', { detail: 'test' }, req);
+      await service.logSecurityEvent(
+        SecurityEventType.SUSPICIOUS_ACTIVITY,
+        SecurityEventSeverity.MEDIUM,
+        'Suspicious activity test',
+        req,
+        { detail: 'test' }
+      );
 
       expect(logSpy).toHaveBeenCalledWith(
-        'Security Event: TEST_EVENT',
+        expect.stringContaining('Security Event: SUSPICIOUS_ACTIVITY'),
         expect.objectContaining({
           clientIP: '127.0.0.1',
           country: 'unknown',
@@ -677,16 +723,20 @@ describe('SecurityService', () => {
   describe('IP Resolution Edge Cases', () => {
     it('should handle trust proxy disabled scenarios', () => {
       // Create service with trust proxy disabled
-      const noTrustProxyService = new SecurityService({
-        get: jest.fn().mockImplementation((key: string) => {
-          if (key === 'IP_WHITELIST') return '';
-          if (key === 'IP_BLACKLIST') return '';
-          if (key === 'CORS_ORIGINS') return 'http://localhost:4200';
-          if (key === 'ALLOWED_COUNTRIES') return 'IN,US,GB';
-          if (key === 'BLOCKED_COUNTRIES') return 'CN';
-          return undefined;
-        }),
-      } as any);
+      const noTrustProxyService = new SecurityService(
+        {
+          get: jest.fn().mockImplementation((key: string) => {
+            if (key === 'IP_WHITELIST') return '';
+            if (key === 'IP_BLACKLIST') return '';
+            if (key === 'CORS_ORIGINS') return 'http://localhost:4200';
+            if (key === 'ALLOWED_COUNTRIES') return 'IN,US,GB';
+            if (key === 'BLOCKED_COUNTRIES') return 'CN';
+            return undefined;
+          }),
+        } as any,
+        mockEventEmitter,
+        mockAuditService
+      );
 
       // Override config to disable trust proxy
       (noTrustProxyService as any).config.ipWhitelist.trustProxy = false;
@@ -755,14 +805,18 @@ describe('SecurityService', () => {
 
     it('should handle empty allowed countries list', () => {
       // Create service with empty allowed countries
-      const emptyAllowedService = new SecurityService({
-        get: jest.fn().mockImplementation((key: string) => {
-          if (key === 'ALLOWED_COUNTRIES') return '';
-          if (key === 'BLOCKED_COUNTRIES') return '';
-          if (key === 'CORS_ORIGINS') return 'http://localhost:4200';
-          return undefined;
-        }),
-      } as any);
+      const emptyAllowedService = new SecurityService(
+        {
+          get: jest.fn().mockImplementation((key: string) => {
+            if (key === 'ALLOWED_COUNTRIES') return '';
+            if (key === 'BLOCKED_COUNTRIES') return '';
+            if (key === 'CORS_ORIGINS') return 'http://localhost:4200';
+            return undefined;
+          }),
+        } as any,
+        mockEventEmitter,
+        mockAuditService
+      );
 
       const req = {
         headers: {},
@@ -817,16 +871,20 @@ describe('SecurityService', () => {
 
     it('should handle disabled sanitization', () => {
       // Create service with sanitization disabled
-      const noSanitizeService = new SecurityService({
-        get: jest.fn().mockImplementation((key: string) => {
-          if (key === 'CORS_ORIGINS') return 'http://localhost:4200';
-          if (key === 'IP_WHITELIST') return '';
-          if (key === 'IP_BLACKLIST') return '';
-          if (key === 'ALLOWED_COUNTRIES') return 'IN,US,GB';
-          if (key === 'BLOCKED_COUNTRIES') return '';
-          return undefined;
-        }),
-      } as any);
+      const noSanitizeService = new SecurityService(
+        {
+          get: jest.fn().mockImplementation((key: string) => {
+            if (key === 'CORS_ORIGINS') return 'http://localhost:4200';
+            if (key === 'IP_WHITELIST') return '';
+            if (key === 'IP_BLACKLIST') return '';
+            if (key === 'ALLOWED_COUNTRIES') return 'IN,US,GB';
+            if (key === 'BLOCKED_COUNTRIES') return '';
+            return undefined;
+          }),
+        } as any,
+        mockEventEmitter,
+        mockAuditService
+      );
 
       // Override config to disable sanitization
       (noSanitizeService as any).config.validation.sanitizeInput = false;

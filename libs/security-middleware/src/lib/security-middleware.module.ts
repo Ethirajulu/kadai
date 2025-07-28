@@ -1,10 +1,15 @@
 import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { SecurityService } from './services/security.service';
 import { RateLimitService } from './services/rate-limit.service';
 import { ValidationService } from './services/validation.service';
 import { JWTService } from './services/jwt.service';
+import { SecurityAuditService } from './services/security-audit.service';
+import { SecurityMonitoringService } from './services/security-monitoring.service';
+import { SecurityDashboardService } from './services/security-dashboard.service';
+import { SecurityAggregationService } from './services/security-aggregation.service';
 import { SecurityInterceptor } from './interceptors/security.interceptor';
 import { RateLimitInterceptor } from './interceptors/rate-limit.interceptor';
 import { IPWhitelistGuard } from './guards/ip-whitelist.guard';
@@ -23,6 +28,7 @@ import securityConfig from './config/security.config';
 @Module({
   imports: [
     ConfigModule.forFeature(securityConfig),
+    EventEmitterModule.forRoot(),
     JwtModule.register({
       global: true,
       secret: process.env.JWT_ACCESS_SECRET || 'default-secret-change-in-production',
@@ -38,6 +44,10 @@ import securityConfig from './config/security.config';
     RateLimitService,
     ValidationService,
     JWTService,
+    SecurityAuditService,
+    SecurityMonitoringService,
+    SecurityDashboardService,
+    SecurityAggregationService,
     SecurityInterceptor,
     RateLimitInterceptor,
     IPWhitelistGuard,
@@ -55,6 +65,10 @@ import securityConfig from './config/security.config';
     RateLimitService,
     ValidationService,
     JWTService,
+    SecurityAuditService,
+    SecurityMonitoringService,
+    SecurityDashboardService,
+    SecurityAggregationService,
     SecurityInterceptor,
     RateLimitInterceptor,
     IPWhitelistGuard,
