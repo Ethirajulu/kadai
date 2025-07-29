@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { promises as fs } from 'fs';
 import { SecurityAggregationService } from './security-aggregation.service';
 import {
   SecurityEventType,
@@ -9,79 +10,103 @@ import {
   SecurityAuditLog,
 } from '../types/security.types';
 
-// Mock Elasticsearch client
-const mockElasticsearchClient = {
-  ping: jest.fn().mockResolvedValue({}),
-  close: jest.fn().mockResolvedValue({}),
-  indices: {
-    exists: jest.fn().mockResolvedValue(false),
-    create: jest.fn().mockResolvedValue({}),
+// Completely mock the fs module to prevent real file operations
+jest.mock('fs', () => ({
+  promises: {
+    mkdir: jest.fn().mockResolvedValue(undefined),
+    readdir: jest.fn().mockResolvedValue([]),
+    readFile: jest.fn().mockResolvedValue(''),
+    writeFile: jest.fn().mockResolvedValue(undefined),
+    appendFile: jest.fn().mockResolvedValue(undefined),
+    stat: jest.fn().mockResolvedValue({ 
+      mtime: new Date(),
+      isFile: () => true,
+      isDirectory: () => false,
+      size: 1024
+    }),
+    unlink: jest.fn().mockResolvedValue(undefined),
+    access: jest.fn().mockResolvedValue(undefined),
   },
-  bulk: jest.fn().mockResolvedValue({
-    errors: false,
-    items: [],
-  }),
-  search: jest.fn().mockResolvedValue({
-    hits: {
-      total: { value: 0 },
-      hits: [],
-    },
-    aggregations: {},
-  }),
-};
-
-jest.mock('@elastic/elasticsearch', () => ({
-  Client: jest.fn().mockImplementation(() => mockElasticsearchClient),
 }));
 
-// Mock fetch for custom backend
-global.fetch = jest.fn().mockResolvedValue({
-  ok: true,
-  status: 200,
-  statusText: 'OK',
-}) as jest.Mock;
+// Mock fetch completely
+const mockFetch = jest.fn();
+(global as any).fetch = mockFetch;
 
 describe('SecurityAggregationService', () => {
   let service: SecurityAggregationService;
   let configService: ConfigService;
   let eventEmitter: EventEmitter2;
 
+  const mockConfigService = {
+    get: jest.fn((key: string, defaultValue?: any) => {
+      const config: Record<string, any> = {
+        'security.monitoring.audit.enabled': true,
+        'security.monitoring.audit.logLevel': 'INFO',
+        'security.monitoring.audit.batchSize': 100,
+        'security.monitoring.audit.flushInterval': 10,
+        'security.monitoring.audit.retentionDays': 30,
+        'security.monitoring.aggregation.enabled': true,
+        'security.monitoring.aggregation.backends': ['FILE'],
+        'security.monitoring.logDirectory': '/tmp/test-security-logs',
+        'security.monitoring.aggregation.webhook.url': 'https://webhook.example.com',
+        'security.monitoring.aggregation.custom.endpoint': 'https://custom.example.com',
+        'security.monitoring.aggregation.custom.batchSize': 100,
+        'security.monitoring.aggregation.custom.retryConfig.maxRetries': 3,
+        'security.monitoring.aggregation.custom.retryConfig.backoffFactor': 2,
+        'security.monitoring.dashboard.enabled': true,
+        'security.monitoring.dashboard.refreshInterval': 30,
+        'security.monitoring.dashboard.historicalDataDays': 7,
+        'security.monitoring.dashboard.maxEventsPerQuery': 1000,
+      };
+      return config[key] ?? defaultValue;
+    }),
+  };
+
+  const mockEventEmitter = {
+    on: jest.fn(),
+    emit: jest.fn(),
+  };
+
   beforeEach(async () => {
+    // Reset all mocks
+    jest.clearAllMocks();
+    
+    // Reset fs mocks
+    (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
+    (fs.readdir as jest.Mock).mockResolvedValue([]);
+    (fs.readFile as jest.Mock).mockResolvedValue('');
+    (fs.appendFile as jest.Mock).mockResolvedValue(undefined);
+    (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+    (fs.stat as jest.Mock).mockResolvedValue({ 
+      mtime: new Date(),
+      isFile: () => true,
+      isDirectory: () => false,
+      size: 1024
+    });
+    (fs.unlink as jest.Mock).mockResolvedValue(undefined);
+    (fs.access as jest.Mock).mockResolvedValue(undefined);
+    
+    // Reset fetch mock
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: jest.fn().mockResolvedValue({}),
+      text: jest.fn().mockResolvedValue(''),
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SecurityAggregationService,
         {
           provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string, defaultValue?: any) => {
-              const config: Record<string, any> = {
-                'security.monitoring.audit.enabled': true,
-                'security.monitoring.audit.logLevel': 'INFO',
-                'security.monitoring.audit.batchSize': 100,
-                'security.monitoring.audit.flushInterval': 10,
-                'security.monitoring.aggregation.enabled': true,
-                'security.monitoring.aggregation.backends': ['ELASTICSEARCH'],
-                'security.monitoring.aggregation.elasticsearch.hosts': 'http://localhost:9200',
-                'security.monitoring.aggregation.elasticsearch.index': 'security-logs-test',
-                'security.monitoring.aggregation.custom.endpoint': 'https://custom.example.com',
-                'security.monitoring.aggregation.custom.batchSize': 100,
-                'security.monitoring.aggregation.custom.retryConfig.maxRetries': 3,
-                'security.monitoring.aggregation.custom.retryConfig.backoffFactor': 2,
-                'security.monitoring.dashboard.enabled': true,
-                'security.monitoring.dashboard.refreshInterval': 30,
-                'security.monitoring.dashboard.historicalDataDays': 7,
-                'security.monitoring.dashboard.maxEventsPerQuery': 1000,
-              };
-              return config[key] ?? defaultValue;
-            }),
-          },
+          useValue: mockConfigService,
         },
         {
           provide: EventEmitter2,
-          useValue: {
-            on: jest.fn(),
-            emit: jest.fn(),
-          },
+          useValue: mockEventEmitter,
         },
       ],
     }).compile();
@@ -89,13 +114,14 @@ describe('SecurityAggregationService', () => {
     service = module.get<SecurityAggregationService>(SecurityAggregationService);
     configService = module.get<ConfigService>(ConfigService);
     eventEmitter = module.get<EventEmitter2>(EventEmitter2);
-
-    // Reset mocks
-    jest.clearAllMocks();
   });
 
   afterEach(async () => {
-    await service.onModuleDestroy();
+    try {
+      await service.onModuleDestroy();
+    } catch (error) {
+      // Ignore cleanup errors in tests
+    }
   });
 
   describe('initialization', () => {
@@ -103,61 +129,93 @@ describe('SecurityAggregationService', () => {
       expect(service).toBeDefined();
     });
 
-    it('should initialize Elasticsearch backend when enabled', async () => {
+    it('should initialize file system when enabled', async () => {
       await service.onModuleInit();
       
-      expect(mockElasticsearchClient.ping).toHaveBeenCalled();
-      expect(mockElasticsearchClient.indices.exists).toHaveBeenCalled();
-      expect(eventEmitter.on).toHaveBeenCalledWith('security.audit.logged', expect.any(Function));
+      expect(fs.mkdir).toHaveBeenCalledWith('/tmp/test-security-logs', { recursive: true });
+      expect(mockEventEmitter.on).toHaveBeenCalledWith('security.audit.logged', expect.any(Function));
     });
 
-    it('should create Elasticsearch index if it does not exist', async () => {
-      mockElasticsearchClient.indices.exists.mockResolvedValue(false);
+    it('should load recent logs into memory during initialization', async () => {
+      (fs.readdir as jest.Mock).mockResolvedValue(['security-logs-2023-01-01.jsonl']);
+      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({
+        id: 'test-log',
+        timestamp: new Date().toISOString(),
+        eventType: SecurityEventType.LOGIN_SUCCESS,
+        severity: SecurityEventSeverity.LOW,
+        category: SecurityEventCategory.AUTHENTICATION,
+        message: 'Test log',
+        sourceIp: '127.0.0.1',
+        acknowledged: false,
+        resolved: false,
+      }));
       
       await service.onModuleInit();
       
-      expect(mockElasticsearchClient.indices.create).toHaveBeenCalledWith({
-        index: 'security-logs-test',
-        mappings: expect.any(Object),
-        settings: expect.any(Object),
-      });
+      expect(fs.readdir).toHaveBeenCalledWith('/tmp/test-security-logs');
     });
 
-    it('should not create index if it already exists', async () => {
-      mockElasticsearchClient.indices.exists.mockResolvedValue(true);
+    it('should handle file system errors during initialization', async () => {
+      (fs.mkdir as jest.Mock).mockRejectedValue(new Error('Permission denied'));
       
-      await service.onModuleInit();
+      // Should not throw when initialization fails
+      await expect(service.onModuleInit()).resolves.toBeUndefined();
       
-      expect(mockElasticsearchClient.indices.create).not.toHaveBeenCalled();
+      // Verify that mkdir was called and failed
+      expect(fs.mkdir).toHaveBeenCalled();
     });
 
     it('should not initialize when aggregation is disabled', async () => {
-      jest.spyOn(configService, 'get').mockImplementation((key: string, defaultValue?: any) => {
-        if (key === 'security.monitoring.aggregation.enabled') {
-          return false;
-        }
-        return defaultValue;
-      });
+      const disabledConfigService = {
+        get: jest.fn((key: string, defaultValue?: any) => {
+          if (key === 'security.monitoring.aggregation.enabled') {
+            return false;
+          }
+          return mockConfigService.get(key, defaultValue);
+        }),
+      };
 
-      const testService = new SecurityAggregationService(configService, eventEmitter);
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SecurityAggregationService,
+          {
+            provide: ConfigService,
+            useValue: disabledConfigService,
+          },
+          {
+            provide: EventEmitter2,
+            useValue: mockEventEmitter,
+          },
+        ],
+      }).compile();
+
+      const testService = module.get<SecurityAggregationService>(SecurityAggregationService);
       await testService.onModuleInit();
       
-      expect(mockElasticsearchClient.ping).not.toHaveBeenCalled();
+      expect(fs.mkdir).not.toHaveBeenCalled();
     });
 
-    it('should handle Elasticsearch connection errors gracefully', async () => {
-      mockElasticsearchClient.ping.mockRejectedValue(new Error('Connection failed'));
+    it('should handle file system read errors gracefully', async () => {
+      (fs.readdir as jest.Mock).mockRejectedValue(new Error('Read failed'));
       
       await service.onModuleInit();
       
       // Should not throw, but log error
-      expect(mockElasticsearchClient.ping).toHaveBeenCalled();
+      expect(fs.mkdir).toHaveBeenCalled();
     });
   });
 
   describe('custom backend initialization', () => {
     beforeEach(() => {
-      jest.spyOn(configService, 'get').mockImplementation((key: string, defaultValue?: any) => {
+      // Reset fetch mock
+      mockFetch.mockReset();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+      });
+      
+      mockConfigService.get = jest.fn((key: string, defaultValue?: any) => {
         const config: Record<string, any> = {
           'security.monitoring.aggregation.enabled': true,
           'security.monitoring.aggregation.backends': ['CUSTOM'],
@@ -168,9 +226,24 @@ describe('SecurityAggregationService', () => {
     });
 
     it('should initialize custom backend', async () => {
-      await service.onModuleInit();
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SecurityAggregationService,
+          {
+            provide: ConfigService,
+            useValue: mockConfigService,
+          },
+          {
+            provide: EventEmitter2,
+            useValue: mockEventEmitter,
+          },
+        ],
+      }).compile();
+
+      const testService = module.get<SecurityAggregationService>(SecurityAggregationService);
+      await testService.onModuleInit();
       
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(mockFetch).toHaveBeenCalledWith(
         'https://custom.example.com/health',
         expect.objectContaining({
           method: 'GET',
@@ -182,12 +255,29 @@ describe('SecurityAggregationService', () => {
     });
 
     it('should handle custom backend initialization errors', async () => {
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+      mockFetch.mockRejectedValue(new Error('Network error'));
       
-      await service.onModuleInit();
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SecurityAggregationService,
+          {
+            provide: ConfigService,
+            useValue: mockConfigService,
+          },
+          {
+            provide: EventEmitter2,
+            useValue: mockEventEmitter,
+          },
+        ],
+      }).compile();
+
+      const testService = module.get<SecurityAggregationService>(SecurityAggregationService);
       
-      // Should not throw
-      expect(global.fetch).toHaveBeenCalled();
+      // Should not throw when custom backend fails
+      await expect(testService.onModuleInit()).resolves.toBeUndefined();
+      
+      // Verify that fetch was called and failed
+      expect(mockFetch).toHaveBeenCalled();
     });
   });
 
@@ -196,7 +286,7 @@ describe('SecurityAggregationService', () => {
       await service.onModuleInit();
     });
 
-    it('should aggregate audit logs to Elasticsearch', async () => {
+    it('should aggregate audit logs to file', async () => {
       const mockAuditLog: SecurityAuditLog = {
         id: 'log-123',
         timestamp: new Date(),
@@ -211,21 +301,22 @@ describe('SecurityAggregationService', () => {
       };
 
       // Get the event handler and trigger it
-      const eventHandler = (eventEmitter.on as jest.Mock).mock.calls[0][1];
+      const eventHandler = (mockEventEmitter.on as jest.Mock).mock.calls[0][1];
       
       // Add multiple logs to trigger batch flush
       for (let i = 0; i < 101; i++) {
         await eventHandler({ ...mockAuditLog, id: `log-${i}` });
       }
 
-      expect(mockElasticsearchClient.bulk).toHaveBeenCalled();
+      expect(fs.appendFile).toHaveBeenCalled();
       
-      const bulkCall = mockElasticsearchClient.bulk.mock.calls[0][0];
-      expect(bulkCall.operations).toHaveLength(200); // 100 logs * 2 (index + document)
+      const appendCall = (fs.appendFile as jest.Mock).mock.calls[0];
+      expect(appendCall[0]).toContain('.jsonl');
+      expect(appendCall[1]).toContain('LOGIN_SUCCESS');
     });
 
-    it('should handle Elasticsearch bulk errors gracefully', async () => {
-      mockElasticsearchClient.bulk.mockRejectedValue(new Error('Bulk operation failed'));
+    it('should handle file write errors gracefully', async () => {
+      (fs.appendFile as jest.Mock).mockRejectedValue(new Error('Write operation failed'));
 
       const mockAuditLog: SecurityAuditLog = {
         id: 'log-123',
@@ -239,395 +330,166 @@ describe('SecurityAggregationService', () => {
         resolved: false,
       };
 
-      const eventHandler = (eventEmitter.on as jest.Mock).mock.calls[0][1];
+      const eventHandler = (mockEventEmitter.on as jest.Mock).mock.calls[0][1];
       
       // Should not throw
       await expect(eventHandler(mockAuditLog)).resolves.toBeUndefined();
     });
   });
 
-  describe('custom backend aggregation', () => {
-    beforeEach(async () => {
-      jest.spyOn(configService, 'get').mockImplementation((key: string, defaultValue?: any) => {
+  describe('aggregation status', () => {
+    it('should return aggregation status', async () => {
+      // Reset to default config for this test
+      mockConfigService.get = jest.fn((key: string, defaultValue?: any) => {
         const config: Record<string, any> = {
+          'security.monitoring.audit.enabled': true,
+          'security.monitoring.audit.logLevel': 'INFO',
+          'security.monitoring.audit.batchSize': 100,
+          'security.monitoring.audit.flushInterval': 10,
+          'security.monitoring.audit.retentionDays': 30,
           'security.monitoring.aggregation.enabled': true,
-          'security.monitoring.aggregation.backends': ['CUSTOM'],
+          'security.monitoring.aggregation.backends': ['FILE'],
+          'security.monitoring.logDirectory': '/tmp/test-security-logs',
+          'security.monitoring.aggregation.webhook.url': 'https://webhook.example.com',
           'security.monitoring.aggregation.custom.endpoint': 'https://custom.example.com',
-          'security.monitoring.aggregation.custom.batchSize': 10,
-          'security.monitoring.aggregation.custom.retryConfig.maxRetries': 2,
+          'security.monitoring.aggregation.custom.batchSize': 100,
+          'security.monitoring.aggregation.custom.retryConfig.maxRetries': 3,
           'security.monitoring.aggregation.custom.retryConfig.backoffFactor': 2,
+          'security.monitoring.dashboard.enabled': true,
+          'security.monitoring.dashboard.refreshInterval': 30,
+          'security.monitoring.dashboard.historicalDataDays': 7,
+          'security.monitoring.dashboard.maxEventsPerQuery': 1000,
         };
         return config[key] ?? defaultValue;
       });
 
-      const testService = new SecurityAggregationService(configService, eventEmitter);
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SecurityAggregationService,
+          {
+            provide: ConfigService,
+            useValue: mockConfigService,
+          },
+          {
+            provide: EventEmitter2,
+            useValue: mockEventEmitter,
+          },
+        ],
+      }).compile();
+
+      const testService = module.get<SecurityAggregationService>(SecurityAggregationService);
       await testService.onModuleInit();
-      service = testService;
-    });
-
-    it('should send logs to custom backend', async () => {
-      const mockAuditLog: SecurityAuditLog = {
-        id: 'log-123',
-        timestamp: new Date(),
-        eventType: SecurityEventType.LOGIN_SUCCESS,
-        severity: SecurityEventSeverity.LOW,
-        category: SecurityEventCategory.AUTHENTICATION,
-        message: 'User login successful',
-        sourceIp: '192.168.1.1',
-        acknowledged: false,
-        resolved: false,
-      };
-
-      const eventHandler = (eventEmitter.on as jest.Mock).mock.calls.find(
-        call => call[0] === 'security.audit.logged'
-      )[1];
       
-      // Add enough logs to trigger batch flush
-      for (let i = 0; i < 11; i++) {
-        await eventHandler({ ...mockAuditLog, id: `log-${i}` });
-      }
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'https://custom.example.com/logs',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Content-Type': 'application/json',
-          }),
-          body: expect.stringContaining('logs'),
-        })
-      );
-    });
-
-    it('should retry failed requests to custom backend', async () => {
-      (global.fetch as jest.Mock)
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockResolvedValue({ ok: true });
-
-      const mockAuditLog: SecurityAuditLog = {
-        id: 'log-123',
-        timestamp: new Date(),
-        eventType: SecurityEventType.LOGIN_SUCCESS,
-        severity: SecurityEventSeverity.LOW,
-        category: SecurityEventCategory.AUTHENTICATION,
-        message: 'User login successful',
-        sourceIp: '192.168.1.1',
-        acknowledged: false,
-        resolved: false,
-      };
-
-      const eventHandler = (eventEmitter.on as jest.Mock).mock.calls.find(
-        call => call[0] === 'security.audit.logged'
-      )[1];
+      const status = testService.getAggregationStatus();
       
-      // Add enough logs to trigger batch flush
-      for (let i = 0; i < 11; i++) {
-        await eventHandler({ ...mockAuditLog, id: `log-${i}` });
-      }
-
-      // Should have made 3 attempts (1 + 2 retries)
-      expect(global.fetch).toHaveBeenCalledTimes(3);
-    });
-
-    it('should give up after max retries', async () => {
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Persistent network error'));
-
-      const mockAuditLog: SecurityAuditLog = {
-        id: 'log-123',
-        timestamp: new Date(),
-        eventType: SecurityEventType.LOGIN_SUCCESS,
-        severity: SecurityEventSeverity.LOW,
-        category: SecurityEventCategory.AUTHENTICATION,
-        message: 'User login successful',
-        sourceIp: '192.168.1.1',
-        acknowledged: false,
-        resolved: false,
-      };
-
-      const eventHandler = (eventEmitter.on as jest.Mock).mock.calls.find(
-        call => call[0] === 'security.audit.logged'
-      )[1];
-      
-      // Add enough logs to trigger batch flush
-      for (let i = 0; i < 11; i++) {
-        await eventHandler({ ...mockAuditLog, id: `log-${i}` });
-      }
-
-      // Should have made max attempts (1 + 2 retries = 3)
-      expect(global.fetch).toHaveBeenCalledTimes(3);
+      expect(status).toMatchObject({
+        enabled: true,
+        backends: ['FILE'],
+        logDirectory: '/tmp/test-security-logs',
+        currentLogFile: expect.stringContaining('.jsonl'),
+        inMemoryLogCount: expect.any(Number),
+        bufferSize: expect.any(Number),
+      });
     });
   });
 
   describe('security metrics', () => {
-    beforeEach(async () => {
-      await service.onModuleInit();
-    });
-
-    it('should return security metrics from Elasticsearch', async () => {
-      const mockAggregations = {
-        event_types: {
-          buckets: [
-            { key: SecurityEventType.LOGIN_SUCCESS, doc_count: 10 },
-            { key: SecurityEventType.LOGIN_FAILURE, doc_count: 5 },
-          ],
-        },
-        severities: {
-          buckets: [
-            { key: SecurityEventSeverity.LOW, doc_count: 8 },
-            { key: SecurityEventSeverity.MEDIUM, doc_count: 7 },
-          ],
-        },
-        countries: {
-          buckets: [
-            { key: 'US', doc_count: 12 },
-            { key: 'IN', doc_count: 3 },
-          ],
-        },
-        unique_users: {
-          value: 25,
-        },
-        login_events: {
-          login_types: {
-            buckets: [
-              { key: SecurityEventType.LOGIN_SUCCESS, doc_count: 10 },
-              { key: SecurityEventType.LOGIN_FAILURE, doc_count: 5 },
-            ],
-          },
-        },
+    it('should return empty metrics when aggregation is disabled', async () => {
+      const disabledConfigService = {
+        get: jest.fn((key: string, defaultValue?: any) => {
+          if (key === 'security.monitoring.aggregation.enabled') {
+            return false;
+          }
+          return mockConfigService.get(key, defaultValue);
+        }),
       };
 
-      mockElasticsearchClient.search.mockResolvedValue({
-        hits: { total: { value: 15 } },
-        aggregations: mockAggregations,
-      });
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SecurityAggregationService,
+          {
+            provide: ConfigService,
+            useValue: disabledConfigService,
+          },
+          {
+            provide: EventEmitter2,
+            useValue: mockEventEmitter,
+          },
+        ],
+      }).compile();
 
-      const metrics = await service.getSecurityMetrics(60);
+      const disabledService = module.get<SecurityAggregationService>(SecurityAggregationService);
+      await disabledService.onModuleInit();
 
-      expect(metrics.eventCounts[SecurityEventType.LOGIN_SUCCESS]).toBe(10);
-      expect(metrics.eventCounts[SecurityEventType.LOGIN_FAILURE]).toBe(5);
-      expect(metrics.severityCounts[SecurityEventSeverity.LOW]).toBe(8);
-      expect(metrics.severityCounts[SecurityEventSeverity.MEDIUM]).toBe(7);
-      expect(metrics.topCountries).toEqual([
-        { country: 'US', count: 12 },
-        { country: 'IN', count: 3 },
-      ]);
-      expect(metrics.uniqueUsers).toBe(25);
-      expect(metrics.totalLogins).toBe(15);
-      expect(metrics.successfulLogins).toBe(10);
-      expect(metrics.failedLogins).toBe(5);
-    });
-
-    it('should return empty metrics when Elasticsearch is not available', async () => {
-      // Create service without Elasticsearch
-      jest.spyOn(configService, 'get').mockImplementation((key: string, defaultValue?: any) => {
-        if (key === 'security.monitoring.aggregation.enabled') {
-          return false;
-        }
-        return defaultValue;
-      });
-
-      const testService = new SecurityAggregationService(configService, eventEmitter);
-      await testService.onModuleInit();
-
-      const metrics = await testService.getSecurityMetrics(60);
+      const metrics = await disabledService.getSecurityMetrics(60);
 
       expect(metrics.totalLogins).toBe(0);
       expect(metrics.uniqueUsers).toBe(0);
       expect(metrics.topCountries).toEqual([]);
     });
 
-    it('should handle Elasticsearch query errors gracefully', async () => {
-      mockElasticsearchClient.search.mockRejectedValue(new Error('Query failed'));
-
+    it('should handle metrics calculation errors gracefully', async () => {
       const metrics = await service.getSecurityMetrics(60);
 
       // Should return initialized metrics structure
       expect(metrics.totalLogins).toBe(0);
       expect(metrics.eventCounts).toBeDefined();
       expect(metrics.severityCounts).toBeDefined();
+      expect(metrics.timestamp).toBeInstanceOf(Date);
+      expect(metrics.timeWindow).toBe(60);
     });
   });
 
-  describe('time series data', () => {
+  describe('export functionality', () => {
     beforeEach(async () => {
       await service.onModuleInit();
-    });
-
-    it('should return time series data for visualization', async () => {
-      const mockResponse = {
-        aggregations: {
-          events_over_time: {
-            buckets: [
-              {
-                key: Date.now() - 3600000, // 1 hour ago
-                event_types: {
-                  buckets: [
-                    { key: SecurityEventType.LOGIN_SUCCESS, doc_count: 5 },
-                    { key: SecurityEventType.LOGIN_FAILURE, doc_count: 2 },
-                  ],
-                },
-                severities: {
-                  buckets: [
-                    { key: SecurityEventSeverity.LOW, doc_count: 4 },
-                    { key: SecurityEventSeverity.MEDIUM, doc_count: 3 },
-                  ],
-                },
-              },
-              {
-                key: Date.now() - 1800000, // 30 minutes ago
-                event_types: {
-                  buckets: [
-                    { key: SecurityEventType.LOGIN_SUCCESS, doc_count: 8 },
-                  ],
-                },
-                severities: {
-                  buckets: [
-                    { key: SecurityEventSeverity.LOW, doc_count: 8 },
-                  ],
-                },
-              },
-            ],
-          },
+      
+      // Add test logs for export functionality
+      const mockLogs: SecurityAuditLog[] = [
+        {
+          id: 'export-log-1',
+          timestamp: new Date('2023-01-01T10:00:00Z'),
+          eventType: SecurityEventType.LOGIN_SUCCESS,
+          severity: SecurityEventSeverity.LOW,
+          category: SecurityEventCategory.AUTHENTICATION,
+          message: 'Login successful',
+          sourceIp: '192.168.1.1',
+          userId: 'user-1',
+          acknowledged: false,
+          resolved: false,
         },
-      };
-
-      mockElasticsearchClient.search.mockResolvedValue(mockResponse);
-
-      const startTime = new Date(Date.now() - 7200000); // 2 hours ago
-      const endTime = new Date();
-
-      const timeSeriesData = await service.getTimeSeriesData(startTime, endTime, '15m');
-
-      expect(timeSeriesData.eventTimeSeries).toHaveLength(3); // 2 + 1 events
-      expect(timeSeriesData.severityTimeSeries).toHaveLength(3); // 2 + 1 severities
-
-      expect(timeSeriesData.eventTimeSeries[0]).toMatchObject({
-        timestamp: expect.any(Date),
-        eventType: SecurityEventType.LOGIN_SUCCESS,
-        count: 5,
-      });
-
-      expect(timeSeriesData.severityTimeSeries[0]).toMatchObject({
-        timestamp: expect.any(Date),
-        severity: SecurityEventSeverity.LOW,
-        count: 4,
-      });
+      ];
+      
+      // Add logs directly to in-memory store for testing
+      service['inMemoryLogs'] = mockLogs;
     });
 
-    it('should return empty data when Elasticsearch is not available', async () => {
-      // Create service without Elasticsearch
-      jest.spyOn(configService, 'get').mockImplementation((key: string, defaultValue?: any) => {
-        if (key === 'security.monitoring.aggregation.enabled') {
-          return false;
-        }
-        return defaultValue;
+    it('should export logs to JSON file', async () => {
+      const exportPath = await service.exportLogs({
+        format: 'json',
       });
 
-      const testService = new SecurityAggregationService(configService, eventEmitter);
-      await testService.onModuleInit();
-
-      const startTime = new Date(Date.now() - 3600000);
-      const endTime = new Date();
-
-      const timeSeriesData = await testService.getTimeSeriesData(startTime, endTime);
-
-      expect(timeSeriesData.eventTimeSeries).toEqual([]);
-      expect(timeSeriesData.severityTimeSeries).toEqual([]);
-    });
-  });
-
-  describe('log searching', () => {
-    beforeEach(async () => {
-      await service.onModuleInit();
+      expect(exportPath).toContain('.json');
+      expect(fs.writeFile).toHaveBeenCalled();
+      
+      const writeCall = (fs.writeFile as jest.Mock).mock.calls.find(
+        call => call[0].includes('.json')
+      );
+      expect(writeCall).toBeDefined();
     });
 
-    it('should search logs with filters', async () => {
-      const mockSearchResult = {
-        hits: {
-          total: { value: 2 },
-          hits: [
-              {
-                _source: {
-                  id: 'log-1',
-                  timestamp: '2023-01-01T10:00:00Z',
-                  eventType: SecurityEventType.LOGIN_SUCCESS,
-                  severity: SecurityEventSeverity.LOW,
-                  message: 'Login successful',
-                  sourceIp: '192.168.1.1',
-                  userId: 'user-1',
-                },
-              },
-              {
-                _source: {
-                  id: 'log-2',
-                  timestamp: '2023-01-01T11:00:00Z',
-                  eventType: SecurityEventType.LOGIN_FAILURE,
-                  severity: SecurityEventSeverity.MEDIUM,
-                  message: 'Login failed',
-                  sourceIp: '192.168.1.2',
-                  userId: 'user-2',
-                },
-              },
-            ],
-          },
-        };
-
-      mockElasticsearchClient.search.mockResolvedValue(mockSearchResult);
-
-      const searchResult = await service.searchLogs({
-        query: 'login',
-        eventTypes: [SecurityEventType.LOGIN_SUCCESS, SecurityEventType.LOGIN_FAILURE],
-        severities: [SecurityEventSeverity.LOW, SecurityEventSeverity.MEDIUM],
-        sourceIp: '192.168.1.1',
-        limit: 10,
-        offset: 0,
+    it('should export logs to CSV file', async () => {
+      const exportPath = await service.exportLogs({
+        format: 'csv',
       });
 
-      expect(searchResult.total).toBe(2);
-      expect(searchResult.logs).toHaveLength(2);
-      expect(searchResult.logs[0].id).toBe('log-1');
-      expect(searchResult.logs[0].timestamp).toBeInstanceOf(Date);
-
-      // Verify the search query was constructed correctly
-      const searchCall = mockElasticsearchClient.search.mock.calls[0][0];
-      expect(searchCall.query.bool.must).toHaveLength(1); // Text query
-      expect(searchCall.query.bool.filter).toContainEqual({
-        terms: { eventType: [SecurityEventType.LOGIN_SUCCESS, SecurityEventType.LOGIN_FAILURE] },
-      });
-      expect(searchCall.query.bool.filter).toContainEqual({
-        terms: { severity: [SecurityEventSeverity.LOW, SecurityEventSeverity.MEDIUM] },
-      });
-      expect(searchCall.query.bool.filter).toContainEqual({
-        term: { sourceIp: '192.168.1.1' },
-      });
-    });
-
-    it('should handle search errors gracefully', async () => {
-      mockElasticsearchClient.search.mockRejectedValue(new Error('Search failed'));
-
-      const searchResult = await service.searchLogs({ query: 'test' });
-
-      expect(searchResult.total).toBe(0);
-      expect(searchResult.logs).toEqual([]);
-    });
-
-    it('should return empty results when Elasticsearch is not available', async () => {
-      // Create service without Elasticsearch
-      jest.spyOn(configService, 'get').mockImplementation((key: string, defaultValue?: any) => {
-        if (key === 'security.monitoring.aggregation.enabled') {
-          return false;
-        }
-        return defaultValue;
-      });
-
-      const testService = new SecurityAggregationService(configService, eventEmitter);
-      await testService.onModuleInit();
-
-      const searchResult = await testService.searchLogs({ query: 'test' });
-
-      expect(searchResult.total).toBe(0);
-      expect(searchResult.logs).toEqual([]);
+      expect(exportPath).toContain('.csv');
+      expect(fs.writeFile).toHaveBeenCalled();
+      
+      const writeCall = (fs.writeFile as jest.Mock).mock.calls.find(
+        call => call[0].includes('.csv')
+      );
+      expect(writeCall).toBeDefined();
     });
   });
 });

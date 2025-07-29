@@ -23,15 +23,17 @@ jest.mock('ioredis', () => {
   return jest.fn().mockImplementation(() => mockRedis);
 });
 
-// Mock nodemailer
+// Mock nodemailer with cleaner approach
 const mockTransporter = {
   verify: jest.fn().mockResolvedValue(true),
   sendMail: jest.fn().mockResolvedValue({ messageId: 'test-message-id' }),
 };
 
-jest.mock('nodemailer', () => ({
-  createTransport: jest.fn().mockReturnValue(mockTransporter),
-}));
+const mockNodemailer = {
+  createTransport: jest.fn(() => mockTransporter),
+};
+
+jest.doMock('nodemailer', () => mockNodemailer);
 
 // Mock fetch for webhook alerts
 global.fetch = jest.fn().mockResolvedValue({

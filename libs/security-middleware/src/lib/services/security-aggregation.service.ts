@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Client as ElasticsearchClient } from '@elastic/elasticsearch';
+import { promises as fs } from 'fs';
+import { join } from 'path';
 import {
   SecurityAuditLog,
   SecurityMonitoringConfig,
@@ -21,22 +22,30 @@ export class SecurityAggregationService
 {
   private readonly logger = new Logger(SecurityAggregationService.name);
   private config: SecurityMonitoringConfig;
-  private elasticsearchClient?: ElasticsearchClient;
   private aggregationBuffer: SecurityAuditLog[] = [];
   private flushInterval: NodeJS.Timeout | null = null;
+  private logDirectory: string;
+  private currentLogFile: string;
+  private inMemoryLogs: SecurityAuditLog[] = [];
+  private maxInMemoryLogs = 10000; // Keep last 10k logs in memory for dashboard
 
   constructor(
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2
   ) {
     this.config = this.loadMonitoringConfig();
+    this.logDirectory = this.configService.get<string>(
+      'security.monitoring.logDirectory',
+      'logs/security'
+    );
+    this.currentLogFile = this.generateLogFileName();
   }
 
   async onModuleInit() {
     if (this.config.aggregation.enabled) {
-      await this.initializeBackends();
+      await this.initializeFileSystem();
       this.startAggregation();
-      this.logger.log('Security aggregation service initialized');
+      this.logger.log('Security aggregation service initialized with file-based storage');
     } else {
       this.logger.warn('Security aggregation service is disabled');
     }
@@ -52,14 +61,7 @@ export class SecurityAggregationService
       await this.flushAggregationBuffer();
     }
 
-    if (this.elasticsearchClient) {
-      try {
-        await this.elasticsearchClient.close();
-        this.logger.log('Elasticsearch client closed');
-      } catch (error) {
-        this.logger.error('Error closing Elasticsearch client', error);
-      }
-    }
+    this.logger.log('Security aggregation service shut down');
   }
 
   private loadMonitoringConfig(): SecurityMonitoringConfig {
@@ -82,8 +84,8 @@ export class SecurityAggregationService
           30
         ),
         storageBackend: this.configService.get<
-          'FILE' | 'DATABASE' | 'ELASTICSEARCH' | 'CLOUD'
-        >('security.monitoring.audit.storageBackend', 'DATABASE'),
+          'FILE' | 'DATABASE' | 'CLOUD'
+        >('security.monitoring.audit.storageBackend', 'FILE'),
         batchSize: this.configService.get<number>(
           'security.monitoring.audit.batchSize',
           100
@@ -115,32 +117,11 @@ export class SecurityAggregationService
       aggregation: {
         enabled: this.configService.get<boolean>(
           'security.monitoring.aggregation.enabled',
-          false
+          true
         ),
         backends: this.configService.get<
-          Array<'ELASTICSEARCH' | 'SPLUNK' | 'DATADOG' | 'CUSTOM'>
-        >('security.monitoring.aggregation.backends', []),
-        elasticsearch: {
-          hosts: this.configService
-            .get<string>(
-              'security.monitoring.aggregation.elasticsearch.hosts',
-              'http://localhost:9200'
-            )
-            .split(','),
-          username: this.configService.get<string>(
-            'security.monitoring.aggregation.elasticsearch.username'
-          ),
-          password: this.configService.get<string>(
-            'security.monitoring.aggregation.elasticsearch.password'
-          ),
-          index: this.configService.get<string>(
-            'security.monitoring.aggregation.elasticsearch.index',
-            'security-logs'
-          ),
-          mappingTemplate: this.configService.get<string>(
-            'security.monitoring.aggregation.elasticsearch.mappingTemplate'
-          ),
-        },
+          Array<'FILE' | 'WEBHOOK' | 'CUSTOM'>
+        >('security.monitoring.aggregation.backends', ['FILE']),
         custom: {
           endpoint: this.configService.get<string>(
             'security.monitoring.aggregation.custom.endpoint',
@@ -184,114 +165,92 @@ export class SecurityAggregationService
     };
   }
 
-  private async initializeBackends(): Promise<void> {
-    for (const backend of this.config.aggregation.backends) {
-      switch (backend) {
-        case 'ELASTICSEARCH':
-          await this.initializeElasticsearch();
-          break;
-        case 'CUSTOM':
+  /**
+   * Get current aggregation status and configuration
+   */
+  getAggregationStatus(): {
+    enabled: boolean;
+    backends: string[];
+    logDirectory: string;
+    currentLogFile: string;
+    inMemoryLogCount: number;
+    bufferSize: number;
+  } {
+    return {
+      enabled: this.config.aggregation.enabled,
+      backends: this.config.aggregation.backends,
+      logDirectory: this.logDirectory,
+      currentLogFile: this.currentLogFile,
+      inMemoryLogCount: this.inMemoryLogs.length,
+      bufferSize: this.aggregationBuffer.length,
+    };
+  }
+  private async initializeFileSystem(): Promise<void> {
+    try {
+      await fs.mkdir(this.logDirectory, { recursive: true });
+      this.logger.log(`Log directory initialized: ${this.logDirectory}`);
+      
+      // Load existing logs into memory for dashboard queries
+      await this.loadRecentLogsIntoMemory();
+      
+      // Initialize custom backends if configured
+      for (const backend of this.config.aggregation.backends) {
+        if (backend === 'CUSTOM') {
           await this.initializeCustomBackend();
-          break;
-        case 'SPLUNK':
-        case 'DATADOG':
-          this.logger.warn(`${backend} backend not yet implemented`);
-          break;
-        default:
-          this.logger.warn(`Unknown aggregation backend: ${backend}`);
+        }
       }
+    } catch (error) {
+      this.logger.error('Failed to initialize file system for security logs', error);
     }
   }
 
-  private async initializeElasticsearch(): Promise<void> {
-    if (!this.config.aggregation.elasticsearch) {
-      return;
-    }
-
-    try {
-      const clientConfig: any = {
-        nodes: this.config.aggregation.elasticsearch.hosts,
-      };
-
-      if (
-        this.config.aggregation.elasticsearch.username &&
-        this.config.aggregation.elasticsearch.password
-      ) {
-        clientConfig.auth = {
-          username: this.config.aggregation.elasticsearch.username,
-          password: this.config.aggregation.elasticsearch.password,
-        };
-      }
-
-      this.elasticsearchClient = new ElasticsearchClient(clientConfig);
-
-      // Test connection
-      await this.elasticsearchClient.ping();
-
-      // Create index if it doesn't exist
-      await this.createElasticsearchIndex();
-
-      this.logger.log('Elasticsearch client initialized successfully');
-    } catch (error) {
-      this.logger.error('Failed to initialize Elasticsearch client', error);
-      this.elasticsearchClient = undefined;
-    }
+  private generateLogFileName(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `security-logs-${year}-${month}-${day}.jsonl`;
   }
 
-  private async createElasticsearchIndex(): Promise<void> {
-    if (!this.elasticsearchClient || !this.config.aggregation.elasticsearch) {
-      return;
-    }
-
-    const indexName = this.config.aggregation.elasticsearch.index;
-
+  private async loadRecentLogsIntoMemory(): Promise<void> {
     try {
-      const exists = await this.elasticsearchClient.indices.exists({
-        index: indexName,
-      });
+      const files = await fs.readdir(this.logDirectory);
+      const logFiles = files
+        .filter(f => f.endsWith('.jsonl'))
+        .sort()
+        .slice(-7); // Load last 7 days of logs
 
-      if (!exists) {
-        await this.elasticsearchClient.indices.create({
-          index: indexName,
-          mappings: {
-            properties: {
-              id: { type: 'keyword' },
-              timestamp: { type: 'date' },
-              eventType: { type: 'keyword' },
-              severity: { type: 'keyword' },
-              category: { type: 'keyword' },
-              message: { type: 'text' },
-              sourceIp: { type: 'ip' },
-              userId: { type: 'keyword' },
-              username: { type: 'keyword' },
-              userRole: { type: 'keyword' },
-              country: { type: 'keyword' },
-              region: { type: 'keyword' },
-              city: { type: 'keyword' },
-              requestMethod: { type: 'keyword' },
-              requestPath: { type: 'text' },
-              userAgent: { type: 'text' },
-              correlationId: { type: 'keyword' },
-              acknowledged: { type: 'boolean' },
-              resolved: { type: 'boolean' },
-              metadata: { type: 'object' },
-            },
-          },
-          settings: {
-            number_of_shards: 1,
-            number_of_replicas: 0,
-            'index.lifecycle.name': 'security-logs-policy',
-            'index.lifecycle.rollover_alias': 'security-logs',
-          },
-        });
-
-        this.logger.log(`Elasticsearch index '${indexName}' created`);
+      const allLogs: SecurityAuditLog[] = [];
+      
+      for (const file of logFiles) {
+        try {
+          const filePath = join(this.logDirectory, file);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const lines = content.trim().split('\n').filter(line => line.trim());
+          
+          for (const line of lines) {
+            try {
+              const log = JSON.parse(line);
+              log.timestamp = new Date(log.timestamp);
+              allLogs.push(log);
+            } catch (parseError) {
+              this.logger.warn(`Failed to parse log line in ${file}`, parseError);
+            }
+          }
+        } catch (fileError) {
+          this.logger.warn(`Failed to read log file ${file}`, fileError);
+        }
       }
+
+      // Keep only the most recent logs in memory
+      this.inMemoryLogs = allLogs
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, this.maxInMemoryLogs);
+        
+      this.logger.log(`Loaded ${this.inMemoryLogs.length} recent logs into memory`);
     } catch (error) {
-      this.logger.error(
-        `Error creating Elasticsearch index '${indexName}'`,
-        error
-      );
+      this.logger.warn('Failed to load recent logs into memory', error);
+      this.inMemoryLogs = [];
     }
   }
 
@@ -378,13 +337,17 @@ export class SecurityAggregationService
 
     const flushPromises: Promise<void>[] = [];
 
+    // Always flush to file
+    flushPromises.push(this.flushToFile(logsToFlush));
+    
+    // Flush to additional backends if configured
     for (const backend of this.config.aggregation.backends) {
       switch (backend) {
-        case 'ELASTICSEARCH':
-          flushPromises.push(this.flushToElasticsearch(logsToFlush));
-          break;
         case 'CUSTOM':
           flushPromises.push(this.flushToCustomBackend(logsToFlush));
+          break;
+        case 'WEBHOOK':
+          flushPromises.push(this.flushToWebhook(logsToFlush));
           break;
         default:
           break;
@@ -393,6 +356,13 @@ export class SecurityAggregationService
 
     try {
       await Promise.allSettled(flushPromises);
+      
+      // Add to in-memory logs for dashboard queries
+      this.inMemoryLogs.unshift(...logsToFlush);
+      if (this.inMemoryLogs.length > this.maxInMemoryLogs) {
+        this.inMemoryLogs = this.inMemoryLogs.slice(0, this.maxInMemoryLogs);
+      }
+      
       this.logger.debug(
         `Flushed ${logsToFlush.length} logs to aggregation backends`
       );
@@ -403,34 +373,82 @@ export class SecurityAggregationService
     }
   }
 
-  private async flushToElasticsearch(logs: SecurityAuditLog[]): Promise<void> {
-    if (!this.elasticsearchClient || !this.config.aggregation.elasticsearch) {
+  private async flushToFile(logs: SecurityAuditLog[]): Promise<void> {
+    try {
+      // Check if we need to rotate log file (daily rotation)
+      const currentFileName = this.generateLogFileName();
+      if (currentFileName !== this.currentLogFile) {
+        this.currentLogFile = currentFileName;
+        this.logger.debug(`Rotating to new log file: ${this.currentLogFile}`);
+      }
+      
+      const logFilePath = join(this.logDirectory, this.currentLogFile);
+      
+      // Convert logs to JSONL format (one JSON object per line)
+      const logLines = logs.map(log => {
+        const logWithTimestamp = {
+          ...log,
+          timestamp: log.timestamp.toISOString(),
+        };
+        return JSON.stringify(logWithTimestamp);
+      });
+      
+      const content = logLines.join('\n') + '\n';
+      
+      // Append to log file
+      await fs.appendFile(logFilePath, content, 'utf-8');
+      
+      this.logger.debug(
+        `Successfully wrote ${logs.length} logs to file: ${logFilePath}`
+      );
+      
+      // Cleanup old log files
+      await this.cleanupOldLogFiles();
+    } catch (error) {
+      this.logger.error('Error writing logs to file', error);
+      throw error;
+    }
+  }
+
+  private async flushToWebhook(logs: SecurityAuditLog[]): Promise<void> {
+    const webhookUrl = this.configService.get<string>(
+      'security.monitoring.aggregation.webhook.url'
+    );
+    
+    if (!webhookUrl) {
       return;
     }
 
     try {
-      const body = logs.flatMap((log) => [
-        {
-          index: {
-            _index:
-              this.config.aggregation.elasticsearch?.index || 'security-logs',
-            _id: log.id,
-          },
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.configService.get<Record<string, string>>(
+            'security.monitoring.aggregation.webhook.headers',
+            {}
+          ),
         },
-        {
-          ...log,
-          '@timestamp': log.timestamp.toISOString(),
-        },
-      ]);
-
-      await this.elasticsearchClient.bulk({
-        operations: body,
+        body: JSON.stringify({ 
+          timestamp: new Date().toISOString(),
+          source: 'kadai-security-middleware',
+          logs: logs.map(log => ({
+            ...log,
+            timestamp: log.timestamp.toISOString(),
+          }))
+        }),
+        signal: AbortSignal.timeout(10000),
       });
-      this.logger.debug(
-        `Successfully sent ${logs.length} logs to Elasticsearch`
-      );
+
+      if (response.ok) {
+        this.logger.debug(
+          `Successfully sent ${logs.length} logs to webhook`
+        );
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
     } catch (error) {
-      this.logger.error('Error sending logs to Elasticsearch', error);
+      this.logger.error('Error sending logs to webhook', error);
       throw error;
     }
   }
@@ -454,7 +472,14 @@ export class SecurityAggregationService
               'Content-Type': 'application/json',
               ...this.config.aggregation.custom.headers,
             },
-            body: JSON.stringify({ logs }),
+            body: JSON.stringify({ 
+              timestamp: new Date().toISOString(),
+              source: 'kadai-security-middleware',
+              logs: logs.map(log => ({
+                ...log,
+                timestamp: log.timestamp.toISOString(),
+              }))
+            }),
             signal: AbortSignal.timeout(10000),
           }
         );
@@ -489,8 +514,30 @@ export class SecurityAggregationService
     }
   }
 
+  private async cleanupOldLogFiles(): Promise<void> {
+    try {
+      const files = await fs.readdir(this.logDirectory);
+      const logFiles = files.filter(f => f.endsWith('.jsonl'));
+      const retentionDays = this.config.audit.retentionDays;
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+      
+      for (const file of logFiles) {
+        const filePath = join(this.logDirectory, file);
+        const stats = await fs.stat(filePath);
+        
+        if (stats.mtime < cutoffDate) {
+          await fs.unlink(filePath);
+          this.logger.debug(`Deleted old log file: ${file}`);
+        }
+      }
+    } catch (error) {
+      this.logger.warn('Error during log file cleanup', error);
+    }
+  }
+
   /**
-   * Query aggregated security metrics
+   * Query aggregated security metrics from in-memory logs
    */
   async getSecurityMetrics(timeWindow = 60): Promise<SecurityMetrics> {
     const endTime = new Date();
@@ -531,14 +578,7 @@ export class SecurityAggregationService
     });
 
     try {
-      if (this.elasticsearchClient && this.config.aggregation.elasticsearch) {
-        await this.queryElasticsearchMetrics(metrics, startTime, endTime);
-      } else {
-        // Fallback to in-memory aggregation if no backend is available
-        this.logger.debug(
-          'No aggregation backend available, returning empty metrics'
-        );
-      }
+      await this.queryInMemoryMetrics(metrics, startTime, endTime);
     } catch (error) {
       this.logger.error('Error querying security metrics', error);
     }
@@ -546,134 +586,93 @@ export class SecurityAggregationService
     return metrics;
   }
 
-  private async queryElasticsearchMetrics(
+  private async queryInMemoryMetrics(
     metrics: SecurityMetrics,
     startTime: Date,
     endTime: Date
   ): Promise<void> {
-    if (!this.elasticsearchClient || !this.config.aggregation.elasticsearch) {
-      return;
-    }
+    // Filter logs within time window
+    const filteredLogs = this.inMemoryLogs.filter(
+      log => log.timestamp >= startTime && log.timestamp <= endTime
+    );
 
-    try {
-      const response = await this.elasticsearchClient.search({
-        index: this.config.aggregation.elasticsearch.index,
-        query: {
-          range: {
-            timestamp: {
-              gte: startTime.toISOString(),
-              lte: endTime.toISOString(),
-            },
-          },
-        },
-        aggs: {
-          event_types: {
-            terms: { field: 'eventType', size: 50 },
-          },
-          severities: {
-            terms: { field: 'severity', size: 10 },
-          },
-          countries: {
-            terms: { field: 'country', size: 20 },
-          },
-          unique_users: {
-            cardinality: { field: 'userId' },
-          },
-          unique_ips: {
-            cardinality: { field: 'sourceIp' },
-          },
-          login_events: {
-            filter: {
-              terms: {
-                eventType: [
-                  SecurityEventType.LOGIN_SUCCESS,
-                  SecurityEventType.LOGIN_FAILURE,
-                ],
-              },
-            },
-            aggs: {
-              login_types: {
-                terms: { field: 'eventType' },
-              },
-            },
-          },
-        },
-        size: 0,
-      });
+    const uniqueUsers = new Set<string>();
+    const uniqueIPs = new Set<string>();
+    const countryCount = new Map<string, number>();
+    const blockedCountries = new Map<string, number>();
 
-      // Process aggregation results
-      const aggs = response.aggregations as any;
-
+    // Process each log
+    for (const log of filteredLogs) {
       // Event counts by type
-      if (aggs?.event_types?.buckets) {
-        for (const bucket of aggs.event_types.buckets) {
-          metrics.eventCounts[bucket.key as SecurityEventType] =
-            bucket.doc_count;
-        }
-      }
-
+      metrics.eventCounts[log.eventType] = 
+        (metrics.eventCounts[log.eventType] || 0) + 1;
+      
       // Severity counts
-      if (aggs?.severities?.buckets) {
-        for (const bucket of aggs.severities.buckets) {
-          metrics.severityCounts[bucket.key as SecurityEventSeverity] =
-            bucket.doc_count;
-        }
-      }
-
-      // Country distribution
-      if (aggs?.countries?.buckets) {
-        metrics.topCountries = aggs.countries.buckets.map((bucket: any) => ({
-          country: bucket.key,
-          count: bucket.doc_count,
-        }));
-      }
-
+      metrics.severityCounts[log.severity] = 
+        (metrics.severityCounts[log.severity] || 0) + 1;
+      
       // Unique users
-      if (aggs?.unique_users?.value) {
-        metrics.uniqueUsers = aggs.unique_users.value;
+      if (log.userId) {
+        uniqueUsers.add(log.userId);
       }
-
-      // Login metrics
-      if (aggs?.login_events?.login_types?.buckets) {
-        for (const bucket of aggs.login_events.login_types.buckets) {
-          if (bucket.key === SecurityEventType.LOGIN_SUCCESS) {
-            metrics.successfulLogins = bucket.doc_count;
-          } else if (bucket.key === SecurityEventType.LOGIN_FAILURE) {
-            metrics.failedLogins = bucket.doc_count;
-          }
+      
+      // Unique IPs
+      uniqueIPs.add(log.sourceIp);
+      
+      // Country distribution
+      if (log.country) {
+        countryCount.set(log.country, (countryCount.get(log.country) || 0) + 1);
+        
+        if (log.eventType === SecurityEventType.GEO_BLOCKED) {
+          blockedCountries.set(log.country, (blockedCountries.get(log.country) || 0) + 1);
         }
-        metrics.totalLogins = metrics.successfulLogins + metrics.failedLogins;
       }
-
-      // Rate limiting metrics
-      metrics.rateLimitHits =
-        metrics.eventCounts[SecurityEventType.RATE_LIMIT_EXCEEDED] || 0;
-      metrics.rateLimitBlocks =
-        metrics.eventCounts[SecurityEventType.BURST_LIMIT_EXCEEDED] || 0;
-
-      // IP filtering metrics
-      metrics.ipBlocks = metrics.eventCounts[SecurityEventType.IP_BLOCKED] || 0;
-
-      // Threat detection metrics
-      const threatEvents = [
-        SecurityEventType.BRUTE_FORCE_ATTEMPT,
-        SecurityEventType.SUSPICIOUS_ACTIVITY,
-        SecurityEventType.ACCOUNT_ENUMERATION,
-        SecurityEventType.PASSWORD_SPRAY_ATTACK,
-        SecurityEventType.CREDENTIAL_STUFFING,
-      ];
-
-      metrics.threatsDetected = threatEvents.reduce(
-        (sum, eventType) => sum + (metrics.eventCounts[eventType] || 0),
-        0
-      );
-    } catch (error) {
-      this.logger.error('Error querying Elasticsearch for metrics', error);
     }
+
+    // Set computed metrics
+    metrics.uniqueUsers = uniqueUsers.size;
+    metrics.uniqueBlockedIPs = uniqueIPs.size;
+    
+    // Login metrics
+    metrics.successfulLogins = metrics.eventCounts[SecurityEventType.LOGIN_SUCCESS] || 0;
+    metrics.failedLogins = metrics.eventCounts[SecurityEventType.LOGIN_FAILURE] || 0;
+    metrics.totalLogins = metrics.successfulLogins + metrics.failedLogins;
+    
+    // Rate limiting metrics
+    metrics.rateLimitHits = metrics.eventCounts[SecurityEventType.RATE_LIMIT_EXCEEDED] || 0;
+    metrics.rateLimitBlocks = metrics.eventCounts[SecurityEventType.BURST_LIMIT_EXCEEDED] || 0;
+    
+    // IP filtering metrics
+    metrics.ipBlocks = metrics.eventCounts[SecurityEventType.IP_BLOCKED] || 0;
+    
+    // Threat detection metrics
+    const threatEvents = [
+      SecurityEventType.BRUTE_FORCE_ATTEMPT,
+      SecurityEventType.SUSPICIOUS_ACTIVITY,
+      SecurityEventType.ACCOUNT_ENUMERATION,
+      SecurityEventType.PASSWORD_SPRAY_ATTACK,
+      SecurityEventType.CREDENTIAL_STUFFING,
+    ];
+    
+    metrics.threatsDetected = threatEvents.reduce(
+      (sum, eventType) => sum + (metrics.eventCounts[eventType] || 0),
+      0
+    );
+    
+    // Country metrics
+    metrics.topCountries = Array.from(countryCount.entries())
+      .map(([country, count]) => ({ country, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+      
+    metrics.blockedCountries = Array.from(blockedCountries.entries())
+      .map(([country, count]) => ({ country, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
   }
 
   /**
-   * Get aggregated data for time series visualization
+   * Get aggregated data for time series visualization from in-memory logs
    */
   async getTimeSeriesData(
     startTime: Date,
@@ -704,77 +703,79 @@ export class SecurityAggregationService
       }>,
     };
 
-    if (!this.elasticsearchClient || !this.config.aggregation.elasticsearch) {
-      return result;
-    }
-
     try {
-      const response = await this.elasticsearchClient.search({
-        index: this.config.aggregation.elasticsearch.index,
-        query: {
-          range: {
-            timestamp: {
-              gte: startTime.toISOString(),
-              lte: endTime.toISOString(),
-            },
-          },
-        },
-        aggs: {
-          events_over_time: {
-            date_histogram: {
-              field: 'timestamp',
-              fixed_interval: interval,
-            },
-            aggs: {
-              event_types: {
-                terms: { field: 'eventType', size: 50 },
-              },
-              severities: {
-                terms: { field: 'severity', size: 10 },
-              },
-            },
-          },
-        },
-        size: 0,
-      });
-
-      const buckets =
-        (response.aggregations as any)?.events_over_time?.buckets || [];
-
-      for (const bucket of buckets) {
-        const timestamp = new Date(bucket.key);
-
-        // Process event types
-        if (bucket.event_types?.buckets) {
-          for (const eventBucket of bucket.event_types.buckets) {
-            result.eventTimeSeries.push({
-              timestamp,
-              eventType: eventBucket.key as SecurityEventType,
-              count: eventBucket.doc_count,
-            });
-          }
+      // Convert interval to milliseconds
+      const intervalMs = this.parseIntervalToMs(interval);
+      
+      // Filter logs within time range
+      const filteredLogs = this.inMemoryLogs.filter(
+        log => log.timestamp >= startTime && log.timestamp <= endTime
+      );
+      
+      // Group logs by time buckets
+      const eventBuckets = new Map<string, Map<SecurityEventType, number>>();
+      const severityBuckets = new Map<string, Map<SecurityEventSeverity, number>>();
+      
+      for (const log of filteredLogs) {
+        // Round timestamp to interval bucket
+        const bucketTime = new Date(
+          Math.floor(log.timestamp.getTime() / intervalMs) * intervalMs
+        );
+        const bucketKey = bucketTime.toISOString();
+        
+        // Event type buckets
+        if (!eventBuckets.has(bucketKey)) {
+          eventBuckets.set(bucketKey, new Map());
         }
-
-        // Process severities
-        if (bucket.severities?.buckets) {
-          for (const severityBucket of bucket.severities.buckets) {
-            result.severityTimeSeries.push({
-              timestamp,
-              severity: severityBucket.key as SecurityEventSeverity,
-              count: severityBucket.doc_count,
-            });
-          }
+        const eventMap = eventBuckets.get(bucketKey)!;
+        eventMap.set(log.eventType, (eventMap.get(log.eventType) || 0) + 1);
+        
+        // Severity buckets
+        if (!severityBuckets.has(bucketKey)) {
+          severityBuckets.set(bucketKey, new Map());
+        }
+        const severityMap = severityBuckets.get(bucketKey)!;
+        severityMap.set(log.severity, (severityMap.get(log.severity) || 0) + 1);
+      }
+      
+      // Convert buckets to time series arrays
+      for (const [bucketKey, eventMap] of eventBuckets) {
+        const timestamp = new Date(bucketKey);
+        for (const [eventType, count] of eventMap) {
+          result.eventTimeSeries.push({ timestamp, eventType, count });
         }
       }
+      
+      for (const [bucketKey, severityMap] of severityBuckets) {
+        const timestamp = new Date(bucketKey);
+        for (const [severity, count] of severityMap) {
+          result.severityTimeSeries.push({ timestamp, severity, count });
+        }
+      }
+      
+      // Sort by timestamp
+      result.eventTimeSeries.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      result.severityTimeSeries.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
     } catch (error) {
-      this.logger.error('Error querying time series data', error);
+      this.logger.error('Error generating time series data', error);
     }
 
     return result;
   }
 
+  private parseIntervalToMs(interval: string): number {
+    const intervalMap: Record<string, number> = {
+      '1m': 60 * 1000,
+      '5m': 5 * 60 * 1000,
+      '15m': 15 * 60 * 1000,
+      '1h': 60 * 60 * 1000,
+      '1d': 24 * 60 * 60 * 1000,
+    };
+    return intervalMap[interval] || intervalMap['15m'];
+  }
+
   /**
-   * Search aggregated logs with advanced filters
+   * Search aggregated logs with advanced filters from in-memory logs
    */
   async searchLogs(filters: {
     query?: string;
@@ -796,95 +797,127 @@ export class SecurityAggregationService
       total: 0,
     };
 
-    if (!this.elasticsearchClient || !this.config.aggregation.elasticsearch) {
-      return result;
-    }
-
     try {
-      const query: any = {
-        bool: {
-          must: [],
-          filter: [],
-        },
-      };
+      let filteredLogs = [...this.inMemoryLogs];
 
-      // Text search
-      if (filters.query) {
-        query.bool.must.push({
-          multi_match: {
-            query: filters.query,
-            fields: ['message', 'userAgent', 'requestPath'],
-          },
-        });
+      // Apply filters
+      if (filters.startTime) {
+        filteredLogs = filteredLogs.filter(log => log.timestamp >= filters.startTime!);
       }
-
-      // Event types filter
+      
+      if (filters.endTime) {
+        filteredLogs = filteredLogs.filter(log => log.timestamp <= filters.endTime!);
+      }
+      
       if (filters.eventTypes && filters.eventTypes.length > 0) {
-        query.bool.filter.push({
-          terms: { eventType: filters.eventTypes },
-        });
+        filteredLogs = filteredLogs.filter(log => 
+          filters.eventTypes!.includes(log.eventType)
+        );
       }
-
-      // Severities filter
+      
       if (filters.severities && filters.severities.length > 0) {
-        query.bool.filter.push({
-          terms: { severity: filters.severities },
-        });
+        filteredLogs = filteredLogs.filter(log => 
+          filters.severities!.includes(log.severity)
+        );
       }
-
-      // Time range filter
-      if (filters.startTime || filters.endTime) {
-        const timeRange: any = {};
-        if (filters.startTime) {
-          timeRange.gte = filters.startTime.toISOString();
-        }
-        if (filters.endTime) {
-          timeRange.lte = filters.endTime.toISOString();
-        }
-        query.bool.filter.push({
-          range: { timestamp: timeRange },
-        });
-      }
-
-      // Source IP filter
+      
       if (filters.sourceIp) {
-        query.bool.filter.push({
-          term: { sourceIp: filters.sourceIp },
-        });
+        filteredLogs = filteredLogs.filter(log => log.sourceIp === filters.sourceIp);
       }
-
-      // User ID filter
+      
       if (filters.userId) {
-        query.bool.filter.push({
-          term: { userId: filters.userId },
-        });
+        filteredLogs = filteredLogs.filter(log => log.userId === filters.userId);
       }
-
-      // Country filter
+      
       if (filters.country) {
-        query.bool.filter.push({
-          term: { country: filters.country },
-        });
+        filteredLogs = filteredLogs.filter(log => log.country === filters.country);
       }
-
-      const response = await this.elasticsearchClient.search({
-        index: this.config.aggregation.elasticsearch.index,
-        query,
-        sort: [{ timestamp: { order: 'desc' } }],
-        from: filters.offset || 0,
-        size: filters.limit || 100,
-      });
-
-      result.total =
-        (response.hits.total as any)?.value || response.hits.hits.length;
-      result.logs = response.hits.hits.map((hit: any) => ({
-        ...hit._source,
-        timestamp: new Date(hit._source.timestamp),
-      }));
+      
+      // Text search in message, userAgent, and requestPath
+      if (filters.query) {
+        const query = filters.query.toLowerCase();
+        filteredLogs = filteredLogs.filter(log => 
+          log.message.toLowerCase().includes(query) ||
+          (log.userAgent && log.userAgent.toLowerCase().includes(query)) ||
+          (log.requestPath && log.requestPath.toLowerCase().includes(query))
+        );
+      }
+      
+      // Sort by timestamp descending
+      filteredLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      
+      result.total = filteredLogs.length;
+      
+      // Apply pagination
+      const offset = filters.offset || 0;
+      const limit = filters.limit || 100;
+      result.logs = filteredLogs.slice(offset, offset + limit);
+      
     } catch (error) {
-      this.logger.error('Error searching aggregated logs', error);
+      this.logger.error('Error searching logs', error);
     }
 
     return result;
+  }
+
+  /**
+   * Export logs to JSON file for external analysis
+   */
+  async exportLogs(filters: {
+    startTime?: Date;
+    endTime?: Date;
+    format?: 'json' | 'csv';
+  } = {}): Promise<string> {
+    try {
+      const searchResult = await this.searchLogs({
+        startTime: filters.startTime,
+        endTime: filters.endTime,
+        limit: 50000, // Large limit for export
+      });
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const exportFileName = `security-logs-export-${timestamp}.${filters.format || 'json'}`;
+      const exportPath = join(this.logDirectory, exportFileName);
+      
+      if (filters.format === 'csv') {
+        // Convert to CSV format
+        const headers = [
+          'id', 'timestamp', 'eventType', 'severity', 'category', 'message',
+          'sourceIp', 'userId', 'username', 'userRole', 'country', 'region', 'city',
+          'requestMethod', 'requestPath', 'userAgent', 'acknowledged', 'resolved'
+        ];
+        
+        const csvRows = [headers.join(',')];
+        
+        for (const log of searchResult.logs) {
+          const row = headers.map(header => {
+            const value = (log as any)[header] || '';
+            // Escape commas and quotes in CSV
+            return typeof value === 'string' && (value.includes(',') || value.includes('"')) 
+              ? `"${value.replace(/"/g, '""')}"` 
+              : value;
+          });
+          csvRows.push(row.join(','));
+        }
+        
+        await fs.writeFile(exportPath, csvRows.join('\n'), 'utf-8');
+      } else {
+        // JSON format
+        const exportData = {
+          exportedAt: new Date().toISOString(),
+          totalLogs: searchResult.total,
+          filters,
+          logs: searchResult.logs,
+        };
+        
+        await fs.writeFile(exportPath, JSON.stringify(exportData, null, 2), 'utf-8');
+      }
+      
+      this.logger.log(`Exported ${searchResult.logs.length} logs to ${exportPath}`);
+      return exportPath;
+    } catch (error) {
+      this.logger.error('Error exporting logs', error);
+      throw error;
+    }
   }
 }

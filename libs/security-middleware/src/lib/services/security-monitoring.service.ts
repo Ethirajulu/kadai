@@ -65,7 +65,7 @@ export class SecurityMonitoringService implements OnModuleInit, OnModuleDestroy 
         logLevel: this.configService.get<'DEBUG' | 'INFO' | 'WARN' | 'ERROR'>('security.monitoring.audit.logLevel', 'INFO'),
         maxLogSize: this.configService.get<number>('security.monitoring.audit.maxLogSize', 100),
         retentionDays: this.configService.get<number>('security.monitoring.audit.retentionDays', 30),
-        storageBackend: this.configService.get<'FILE' | 'DATABASE' | 'ELASTICSEARCH' | 'CLOUD'>('security.monitoring.audit.storageBackend', 'DATABASE'),
+        storageBackend: this.configService.get<'FILE' | 'DATABASE' | 'CLOUD'>('security.monitoring.audit.storageBackend', 'DATABASE'),
         batchSize: this.configService.get<number>('security.monitoring.audit.batchSize', 100),
         flushInterval: this.configService.get<number>('security.monitoring.audit.flushInterval', 10),
       },

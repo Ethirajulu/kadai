@@ -81,7 +81,7 @@ export class SecurityAuditService implements OnModuleInit, OnModuleDestroy {
           30
         ),
         storageBackend: this.configService.get<
-          'FILE' | 'DATABASE' | 'ELASTICSEARCH' | 'CLOUD'
+          'FILE' | 'DATABASE' | 'CLOUD'
         >('security.monitoring.audit.storageBackend', 'DATABASE'),
         batchSize: this.configService.get<number>(
           'security.monitoring.audit.batchSize',

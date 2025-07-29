@@ -620,7 +620,7 @@ export interface SecurityMonitoringConfig {
     logLevel: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
     maxLogSize: number; // in MB
     retentionDays: number;
-    storageBackend: 'FILE' | 'DATABASE' | 'ELASTICSEARCH' | 'CLOUD';
+    storageBackend: 'FILE' | 'DATABASE' | 'CLOUD';
     batchSize: number;
     flushInterval: number; // in seconds
   };
@@ -686,13 +686,11 @@ export interface SecurityMonitoringConfig {
   
   aggregation: {
     enabled: boolean;
-    backends: Array<'ELASTICSEARCH' | 'SPLUNK' | 'DATADOG' | 'CUSTOM'>;
-    elasticsearch?: {
-      hosts: string[];
-      username?: string;
-      password?: string;
-      index: string;
-      mappingTemplate?: string;
+    backends: Array<'FILE' | 'WEBHOOK' | 'CUSTOM'>;
+    webhook?: {
+      url: string;
+      headers?: Record<string, string>;
+      timeout?: number;
     };
     custom?: {
       endpoint: string;
