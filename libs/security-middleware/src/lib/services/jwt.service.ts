@@ -11,17 +11,36 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   JWTTokenPayload,
   JWTTokenPair,
+  JWTServiceConfig,
+  UnsafeDecodedToken,
   User,
   UserRole,
   SecurityRequest,
   JWTAuthRequest,
 } from '../types/security.types';
 
+// Type guards for safe type assertions
+function isValidTokenPayload(payload: unknown): payload is Partial<JWTTokenPayload> {
+  return payload !== null && typeof payload === 'object';
+}
+
+function isValidDecodedStructure(decoded: unknown): decoded is { header?: unknown; payload?: unknown; signature?: string } {
+  return decoded !== null && typeof decoded === 'object' && 'payload' in decoded;
+}
+
+function safeStringExtract(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function safeNumberExtract(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : undefined;
+}
+
 @Injectable()
 export class JWTService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(JWTService.name);
   private redis!: Redis;
-  private jwtConfig: any;
+  private jwtConfig: JWTServiceConfig;
 
   constructor(
     private readonly jwtService: JwtService,
@@ -30,10 +49,10 @@ export class JWTService implements OnModuleInit, OnModuleDestroy {
     this.jwtConfig = {
       accessTokenSecret: this.configService.get<string>(
         'security.jwt.accessTokenSecret'
-      ),
+      ) || '',
       refreshTokenSecret: this.configService.get<string>(
         'security.jwt.refreshTokenSecret'
-      ),
+      ) || '',
       accessTokenExpiry: this.configService.get<string>(
         'security.jwt.accessTokenExpiry',
         '15m'
@@ -50,9 +69,13 @@ export class JWTService implements OnModuleInit, OnModuleDestroy {
         'security.jwt.audience',
         'kadai-api'
       ),
-      algorithm: this.configService.get<string>(
+      algorithm: this.configService.get<'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512'>(
         'security.jwt.algorithm',
         'HS256'
+      ),
+      clockTolerance: this.configService.get<number>(
+        'security.jwt.clockTolerance',
+        30
       ),
     };
   }
@@ -193,11 +216,23 @@ export class JWTService implements OnModuleInit, OnModuleDestroy {
    */
   async validateAccessToken(token: string): Promise<JWTTokenPayload> {
     try {
-      const payload = this.jwtService.verify(token, {
+      const rawPayload = this.jwtService.verify(token, {
         secret: this.jwtConfig.accessTokenSecret,
         issuer: this.jwtConfig.issuer,
         audience: this.jwtConfig.audience,
-      }) as JWTTokenPayload;
+      });
+
+      // Validate payload structure
+      if (!isValidTokenPayload(rawPayload)) {
+        throw new Error('Invalid token payload structure');
+      }
+
+      // Ensure required fields are present
+      if (!rawPayload.sub || !rawPayload.jti) {
+        throw new Error('Token missing required fields (sub, jti)');
+      }
+
+      const payload = rawPayload as JWTTokenPayload;
 
       // Check if token is blacklisted
       if (payload.jti && (await this.isTokenBlacklisted(payload.jti))) {
@@ -219,11 +254,23 @@ export class JWTService implements OnModuleInit, OnModuleDestroy {
    */
   async validateRefreshToken(token: string): Promise<JWTTokenPayload> {
     try {
-      const payload = this.jwtService.verify(token, {
+      const rawPayload = this.jwtService.verify(token, {
         secret: this.jwtConfig.refreshTokenSecret,
         issuer: this.jwtConfig.issuer,
         audience: this.jwtConfig.audience,
-      }) as JWTTokenPayload;
+      });
+
+      // Validate payload structure
+      if (!isValidTokenPayload(rawPayload)) {
+        throw new Error('Invalid refresh token payload structure');
+      }
+
+      // Ensure required fields are present
+      if (!rawPayload.sub || !rawPayload.jti) {
+        throw new Error('Refresh token missing required fields (sub, jti)');
+      }
+
+      const payload = rawPayload as JWTTokenPayload;
 
       // Check if token is blacklisted
       if (payload.jti && (await this.isTokenBlacklisted(payload.jti))) {
@@ -408,19 +455,22 @@ export class JWTService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Check custom headers (x-access-token)
-    if (request.headers['x-access-token']) {
-      return request.headers['x-access-token'] as string;
+    const customToken = request.headers['x-access-token'];
+    if (customToken && typeof customToken === 'string') {
+      return customToken;
     }
 
-    // Use request.get() method if available for custom headers
-    if (typeof (request as any).get === 'function') {
+    // Use request.get() method if available for custom headers (Express style)
+    const requestWithGet = request as unknown as { get?: (header: string) => string | undefined };
+    if (typeof requestWithGet.get === 'function') {
       try {
-        const customHeaderToken = (request as any).get('x-access-token');
-        if (customHeaderToken) {
+        const customHeaderToken = requestWithGet.get('x-access-token');
+        if (customHeaderToken && typeof customHeaderToken === 'string') {
           return customHeaderToken;
         }
       } catch (error) {
         // Ignore errors from request.get() method and continue with other methods
+        this.logger.debug('Error using request.get() method', error);
       }
     }
 
@@ -435,8 +485,57 @@ export class JWTService implements OnModuleInit, OnModuleDestroy {
   /**
    * Decode token without verification (for information only)
    */
-  decodeToken(token: string): any {
-    return this.jwtService.decode(token);
+  decodeToken(token: string): UnsafeDecodedToken | null {
+    try {
+      const decoded = this.jwtService.decode(token);
+      if (!decoded || typeof decoded !== 'object') {
+        return null;
+      }
+      
+      // Handle both complete JWT structure and direct payload
+      if (isValidDecodedStructure(decoded)) {
+        // Full JWT structure
+        const fullDecoded = decoded;
+        const payload = fullDecoded.payload as Record<string, unknown> | undefined;
+        const safePayload = payload || {};
+        return {
+          header: fullDecoded.header as { alg?: string; typ?: string; [key: string]: unknown },
+          payload: safePayload,
+          signature: fullDecoded.signature,
+          // Direct access properties with safe extraction
+          sub: safeStringExtract(safePayload.sub),
+          id: safeStringExtract(safePayload.id),
+          email: safeStringExtract(safePayload.email),
+          role: safeStringExtract(safePayload.role),
+          name: safeStringExtract(safePayload.name),
+          jti: safeStringExtract(safePayload.jti),
+          exp: safeNumberExtract(safePayload.exp),
+          iat: safeNumberExtract(safePayload.iat),
+          iss: safeStringExtract(safePayload.iss),
+          aud: safeStringExtract(safePayload.aud),
+        };
+      } else {
+        // Direct payload
+        const payload = decoded as Record<string, unknown>;
+        return {
+          payload,
+          // Direct access properties with safe extraction
+          sub: safeStringExtract(payload.sub),
+          id: safeStringExtract(payload.id),
+          email: safeStringExtract(payload.email),
+          role: safeStringExtract(payload.role),
+          name: safeStringExtract(payload.name),
+          jti: safeStringExtract(payload.jti),
+          exp: safeNumberExtract(payload.exp),
+          iat: safeNumberExtract(payload.iat),
+          iss: safeStringExtract(payload.iss),
+          aud: safeStringExtract(payload.aud),
+        };
+      }
+    } catch (error) {
+      this.logger.warn('Failed to decode token', error);
+      return null;
+    }
   }
 
   /**

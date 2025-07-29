@@ -541,7 +541,7 @@ describe('ValidationService', () => {
       const res = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
-      };
+      } as any;
       const next = jest.fn();
 
       await middleware(req, res, next);
@@ -568,7 +568,7 @@ describe('ValidationService', () => {
       const res = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
-      };
+      } as any;
       const next = jest.fn();
 
       await middleware(req, res, next);
@@ -590,7 +590,7 @@ describe('ValidationService', () => {
       const res = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
-      };
+      } as any;
       const next = jest.fn();
 
       // Mock the validation chains to return empty array
@@ -611,7 +611,7 @@ describe('ValidationService', () => {
       const res = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
-      };
+      } as any;
       const next = jest.fn();
 
       // Mock the validation chains to return empty array

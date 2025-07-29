@@ -58,9 +58,9 @@ export class TokenRefreshMiddleware implements NestMiddleware {
 
       // Create user object for token refresh
       const user: User = {
-        id: currentPayload.sub,
-        email: currentPayload.email,
-        role: currentPayload.role || UserRole.USER,
+        id: currentPayload.sub || '',
+        email: currentPayload.email || '',
+        role: (currentPayload.role as UserRole) || UserRole.USER,
         name: currentPayload.name
       };
 

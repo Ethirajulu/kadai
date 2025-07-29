@@ -35,8 +35,6 @@ const mockFetch = jest.fn();
 
 describe('SecurityAggregationService', () => {
   let service: SecurityAggregationService;
-  let configService: ConfigService;
-  let eventEmitter: EventEmitter2;
 
   const mockConfigService = {
     get: jest.fn((key: string, defaultValue?: any) => {
@@ -112,8 +110,6 @@ describe('SecurityAggregationService', () => {
     }).compile();
 
     service = module.get<SecurityAggregationService>(SecurityAggregationService);
-    configService = module.get<ConfigService>(ConfigService);
-    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
   });
 
   afterEach(async () => {

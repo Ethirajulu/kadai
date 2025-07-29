@@ -3,6 +3,12 @@ import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { SecurityService } from './services/security.service';
+import { SecurityOrchestratorService } from './services/security-orchestrator.service';
+import { SecurityMiddlewareFactoryService } from './services/security-middleware-factory.service';
+import { InputSanitizationService } from './services/input-sanitization.service';
+import { ConfigurableSanitizationService } from './services/configurable-sanitization.service';
+import { SecurityValidationService } from './services/security-validation.service';
+import { GeoSecurityService } from './services/geo-security.service';
 import { RateLimitService } from './services/rate-limit.service';
 import { ValidationService } from './services/validation.service';
 import { JWTService } from './services/jwt.service';
@@ -31,7 +37,9 @@ import securityConfig from './config/security.config';
     EventEmitterModule.forRoot(),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_ACCESS_SECRET || 'default-secret-change-in-production',
+      secret: process.env.JWT_ACCESS_SECRET || (() => {
+        throw new Error('JWT_ACCESS_SECRET environment variable is required but not set');
+      })(),
       signOptions: { 
         expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
         issuer: process.env.JWT_ISSUER || 'kadai-auth',
@@ -41,6 +49,12 @@ import securityConfig from './config/security.config';
   ],
   providers: [
     SecurityService,
+    SecurityOrchestratorService,
+    SecurityMiddlewareFactoryService,
+    InputSanitizationService,
+    ConfigurableSanitizationService,
+    SecurityValidationService,
+    GeoSecurityService,
     RateLimitService,
     ValidationService,
     JWTService,
@@ -62,6 +76,12 @@ import securityConfig from './config/security.config';
   ],
   exports: [
     SecurityService,
+    SecurityOrchestratorService,
+    SecurityMiddlewareFactoryService, 
+    InputSanitizationService,
+    ConfigurableSanitizationService,
+    SecurityValidationService,
+    GeoSecurityService,
     RateLimitService,
     ValidationService,
     JWTService,

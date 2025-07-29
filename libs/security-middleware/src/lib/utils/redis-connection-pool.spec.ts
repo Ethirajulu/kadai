@@ -310,6 +310,7 @@ describe('RedisConnectionPool', () => {
       const defaultPool = new RedisConnectionPool({
         host: 'localhost',
         port: 6379,
+        poolSize: 3,
       });
       
       expect(defaultPool).toBeDefined();

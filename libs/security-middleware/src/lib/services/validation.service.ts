@@ -10,7 +10,12 @@ import {
   validationResult,
   ValidationChain,
 } from 'express-validator';
-import { SecurityRequest } from '../types/security.types';
+import { 
+  SecurityRequest, 
+  SecurityResponse, 
+  SecurityNextFunction,
+  SecurityMiddleware
+} from '../types/security.types';
 
 export interface ValidationSchema {
   body?: Joi.ObjectSchema;
@@ -77,8 +82,8 @@ export class ValidationService {
   }
 
   // Generic validation middleware
-  getValidationMiddleware(schema?: ValidationSchema) {
-    return async (req: SecurityRequest, res: any, next: any) => {
+  getValidationMiddleware(schema?: ValidationSchema): SecurityMiddleware {
+    return async (req: SecurityRequest, res: SecurityResponse, next: SecurityNextFunction): Promise<void> => {
       try {
         // Apply Joi validation if schema provided
         if (schema) {
@@ -93,10 +98,11 @@ export class ValidationService {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           this.logger.warn('Validation failed:', errors.array());
-          return res.status(400).json({
+          res.status(400).json({
             error: 'Validation failed',
             details: errors.array(),
           });
+          return;
         }
 
         // Sanitize input if enabled
@@ -107,11 +113,12 @@ export class ValidationService {
         next();
       } catch (error) {
         this.logger.error('Validation error:', error);
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Validation error',
           message:
             error instanceof Error ? error.message : 'Unknown validation error',
         });
+        return;
       }
     };
   }
@@ -288,14 +295,14 @@ export class ValidationService {
       req.body = this.sanitizeObject(req.body);
     }
     if (req.query) {
-      req.query = this.sanitizeObject(req.query);
+      req.query = this.sanitizeObject(req.query) as any;
     }
     if (req.params) {
-      req.params = this.sanitizeObject(req.params);
+      req.params = this.sanitizeObject(req.params) as any;
     }
   }
 
-  private sanitizeObject(obj: any): any {
+  private sanitizeObject(obj: unknown): unknown {
     if (typeof obj === 'string') {
       return this.sanitizeString(obj);
     }
@@ -303,7 +310,7 @@ export class ValidationService {
       return obj.map((item) => this.sanitizeObject(item));
     }
     if (obj && typeof obj === 'object') {
-      const sanitized: any = {};
+      const sanitized: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj)) {
         sanitized[key] = this.sanitizeObject(value);
       }
@@ -358,7 +365,7 @@ export class ValidationService {
   }
 
   // Logging
-  logValidationEvent(event: string, details: any, req?: SecurityRequest): void {
+  logValidationEvent(event: string, details: Record<string, unknown>, req?: SecurityRequest): void {
     const clientIP = req ? this.getClientIP(req) : 'unknown';
 
     this.logger.warn(`Validation Event: ${event}`, {

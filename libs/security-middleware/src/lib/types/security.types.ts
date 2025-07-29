@@ -1,4 +1,9 @@
-import { Request } from 'express';
+import { Request, Response, NextFunction } from 'express';
+
+// Express middleware types
+export type SecurityResponse = Response;
+export type SecurityNextFunction = NextFunction;
+export type SecurityMiddleware = (req: SecurityRequest, res: SecurityResponse, next: SecurityNextFunction) => Promise<void>;
 
 export interface SecurityConfig {
   helmet?: {
@@ -208,6 +213,59 @@ export interface SystemLoad {
 }
 
 // JWT Token Management Types
+export interface JWTServiceConfig {
+  accessTokenSecret: string;
+  refreshTokenSecret: string;
+  accessTokenExpiry: string;
+  refreshTokenExpiry: string;
+  issuer: string;
+  audience: string;
+  algorithm: 'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512';
+  clockTolerance: number;
+}
+
+export interface DecodedToken {
+  header: {
+    alg: string;
+    typ: string;
+  };
+  payload: JWTTokenPayload;
+  signature: string;
+}
+
+export interface UnsafeDecodedToken {
+  header?: {
+    alg?: string;
+    typ?: string;
+    [key: string]: unknown;
+  };
+  payload?: {
+    sub?: string;
+    id?: string;
+    email?: string;
+    role?: string;
+    name?: string;
+    jti?: string;
+    exp?: number;
+    iat?: number;
+    iss?: string;
+    aud?: string;
+    [key: string]: unknown;
+  };
+  signature?: string;
+  // Direct access to common properties for backwards compatibility
+  sub?: string;
+  id?: string;
+  email?: string;
+  role?: string;
+  name?: string;
+  jti?: string;
+  exp?: number;
+  iat?: number;
+  iss?: string;
+  aud?: string;
+}
+
 export interface JWTConfig {
   enabled: boolean;
   algorithm: 'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512';

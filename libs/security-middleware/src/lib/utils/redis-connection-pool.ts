@@ -8,7 +8,7 @@ import { Logger } from '@nestjs/common';
 import { RedisCircuitBreaker, CircuitBreakerState } from './redis-circuit-breaker';
 
 export interface PoolConfig extends RedisOptions {
-  poolSize?: number;
+  poolSize: number;
   healthCheckInterval?: number;
   retryDelayOnFailover?: number;
   maxRetriesPerRequest?: number;
@@ -35,13 +35,12 @@ export class RedisConnectionPool {
   private healthStatus: Map<number, ConnectionHealth> = new Map();
   private circuitBreaker: RedisCircuitBreaker;
   private healthCheckTimer?: NodeJS.Timeout;
-  private config: any;
+  private config: PoolConfig;
   private isShuttingDown = false;
   private connectionIndex = 0;
 
   constructor(config: PoolConfig) {
     this.config = {
-      poolSize: config.poolSize ?? 3,
       healthCheckInterval: config.healthCheckInterval ?? 30000, // 30 seconds
       retryDelayOnFailover: config.retryDelayOnFailover ?? 100,
       maxRetriesPerRequest: config.maxRetriesPerRequest ?? 3,
