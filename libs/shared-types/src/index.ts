@@ -58,3 +58,6 @@ export {
   DatabaseError,
   TransactionError
 } from './lib/repositories';
+
+// Security types
+export * from './lib/security.types';
