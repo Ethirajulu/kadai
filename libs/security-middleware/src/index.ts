@@ -15,6 +15,8 @@ export * from './lib/services/security-audit.service';
 export * from './lib/services/security-monitoring.service';
 export * from './lib/services/security-dashboard.service';
 export * from './lib/services/security-aggregation.service';
+export * from './lib/services/elasticsearch-logger.service';
+export * from './lib/services/log-retention.service';
 export * from './lib/interceptors/security.interceptor';
 export * from './lib/interceptors/rate-limit.interceptor';
 export * from './lib/guards/ip-whitelist.guard';

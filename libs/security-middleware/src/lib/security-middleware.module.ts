@@ -2,6 +2,7 @@ import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { SecurityService } from './services/security.service';
 import { SecurityOrchestratorService } from './services/security-orchestrator.service';
 import { SecurityMiddlewareFactoryService } from './services/security-middleware-factory.service';
@@ -16,6 +17,8 @@ import { SecurityAuditService } from './services/security-audit.service';
 import { SecurityMonitoringService } from './services/security-monitoring.service';
 import { SecurityDashboardService } from './services/security-dashboard.service';
 import { SecurityAggregationService } from './services/security-aggregation.service';
+import { ElasticsearchLoggerService } from './services/elasticsearch-logger.service';
+import { LogRetentionService } from './services/log-retention.service';
 import { SecurityInterceptor } from './interceptors/security.interceptor';
 import { RateLimitInterceptor } from './interceptors/rate-limit.interceptor';
 import { IPWhitelistGuard } from './guards/ip-whitelist.guard';
@@ -35,6 +38,7 @@ import securityConfig from './config/security.config';
   imports: [
     ConfigModule.forFeature(securityConfig),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     JwtModule.register({
       global: true,
       secret: process.env.JWT_ACCESS_SECRET || (() => {
@@ -62,6 +66,8 @@ import securityConfig from './config/security.config';
     SecurityMonitoringService,
     SecurityDashboardService,
     SecurityAggregationService,
+    ElasticsearchLoggerService,
+    LogRetentionService,
     SecurityInterceptor,
     RateLimitInterceptor,
     IPWhitelistGuard,
@@ -89,6 +95,8 @@ import securityConfig from './config/security.config';
     SecurityMonitoringService,
     SecurityDashboardService,
     SecurityAggregationService,
+    ElasticsearchLoggerService,
+    LogRetentionService,
     SecurityInterceptor,
     RateLimitInterceptor,
     IPWhitelistGuard,
