@@ -124,32 +124,32 @@ describe('SecurityService', () => {
       next = jest.fn();
     });
 
-    it('should allow whitelisted IP', () => {
+    it('should allow whitelisted IP', async () => {
       (req.connection as any).remoteAddress = '127.0.0.1';
 
       const middleware = service.getIPFilterMiddleware();
-      middleware(req as SecurityRequest, res, next);
+      await middleware(req as SecurityRequest, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(req.isWhitelisted).toBe(true);
     });
 
-    it('should block blacklisted IP', () => {
+    it('should block blacklisted IP', async () => {
       (req.connection as any).remoteAddress = '10.0.0.1';
 
       const middleware = service.getIPFilterMiddleware();
-      middleware(req as SecurityRequest, res, next);
+      await middleware(req as SecurityRequest, res, next);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({ error: 'Access denied' });
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('should block non-whitelisted IP when whitelist is configured', () => {
+    it('should block non-whitelisted IP when whitelist is configured', async () => {
       (req.connection as any).remoteAddress = '192.168.1.100';
 
       const middleware = service.getIPFilterMiddleware();
-      middleware(req as SecurityRequest, res, next);
+      await middleware(req as SecurityRequest, res, next);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({ error: 'Access denied' });
@@ -186,11 +186,11 @@ describe('SecurityService', () => {
       expect(req.ipInfo?.country).toBe('US');
     });
 
-    it('should set fallback country for unknown IPs', () => {
+    it('should set fallback country for unknown IPs', async () => {
       (req.connection as any).remoteAddress = '127.0.0.1'; // Localhost
 
       const middleware = service.getGeoFilterMiddleware();
-      middleware(req as SecurityRequest, res, next);
+      await middleware(req as SecurityRequest, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(req.ipInfo?.country).toBe('IN');
@@ -207,6 +207,7 @@ describe('SecurityService', () => {
         body: { test: 'value' },
         query: {},
         params: {},
+        headers: {},
       };
       res = {
         status: jest.fn().mockReturnThis(),
@@ -215,7 +216,7 @@ describe('SecurityService', () => {
       next = jest.fn();
     });
 
-    it('should proceed when no validation errors', () => {
+    it('should proceed when no validation errors', async () => {
       // Mock validationResult to return no errors
       mockValidationResult.mockReturnValue({
         isEmpty: () => true,
@@ -228,7 +229,7 @@ describe('SecurityService', () => {
       } as any);
 
       const middleware = service.getValidationMiddleware();
-      middleware(req as SecurityRequest, res, next);
+      await middleware(req as SecurityRequest, res, next);
 
       expect(next).toHaveBeenCalled();
     });
@@ -516,9 +517,9 @@ describe('SecurityService', () => {
       next = jest.fn();
     });
 
-    it('should block requests from blocked countries', () => {
+    it('should block requests from blocked countries', async () => {
       const middleware = service.getGeoFilterMiddleware();
-      middleware(req as SecurityRequest, res, next);
+      await middleware(req as SecurityRequest, res, next);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
@@ -548,22 +549,22 @@ describe('SecurityService', () => {
       next = jest.fn();
     });
 
-    it('should use x-forwarded-for header when trust proxy is enabled', () => {
+    it('should use x-forwarded-for header when trust proxy is enabled', async () => {
       req.headers = { 'x-forwarded-for': '192.168.1.100' };
 
       const middleware = service.getIPFilterMiddleware();
-      middleware(req as SecurityRequest, res, next);
+      await middleware(req as SecurityRequest, res, next);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({ error: 'Access denied' });
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('should use x-real-ip header when x-forwarded-for is not available', () => {
+    it('should use x-real-ip header when x-forwarded-for is not available', async () => {
       req.headers = { 'x-real-ip': '192.168.1.101' };
 
       const middleware = service.getIPFilterMiddleware();
-      middleware(req as SecurityRequest, res, next);
+      await middleware(req as SecurityRequest, res, next);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({ error: 'Access denied' });
@@ -783,7 +784,7 @@ describe('SecurityService', () => {
   });
 
   describe('Geo Filter Edge Cases', () => {
-    it('should handle unknown IP with fallback country', () => {
+    it('should handle unknown IP with fallback country', async () => {
       const req = {
         headers: {},
         connection: { remoteAddress: '0.0.0.0' }, // Invalid IP
@@ -797,7 +798,7 @@ describe('SecurityService', () => {
       const next = jest.fn();
 
       const middleware = service.getGeoFilterMiddleware();
-      middleware(req, res, next);
+      await middleware(req, res, next);
 
       expect(req.ipInfo?.country).toBe('IN'); // Should use fallback
       expect(next).toHaveBeenCalled();
@@ -837,7 +838,7 @@ describe('SecurityService', () => {
   });
 
   describe('Validation Middleware Edge Cases', () => {
-    it('should handle validation errors correctly', () => {
+    it('should handle validation errors correctly', async () => {
       const req = {
         body: { email: 'invalid-email' }
       } as SecurityRequest;
@@ -859,7 +860,7 @@ describe('SecurityService', () => {
       } as any);
 
       const middleware = service.getValidationMiddleware();
-      middleware(req, res, next);
+      await middleware(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
@@ -869,7 +870,7 @@ describe('SecurityService', () => {
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('should handle disabled sanitization', () => {
+    it('should handle disabled sanitization', async () => {
       // Create service with sanitization disabled
       const noSanitizeService = new SecurityService(
         {
@@ -907,7 +908,7 @@ describe('SecurityService', () => {
       } as any);
 
       const middleware = noSanitizeService.getValidationMiddleware();
-      middleware(req, res, next);
+      await middleware(req, res, next);
 
       expect(req.body.malicious).toBe('<script>alert()</script>'); // Should not be sanitized
       expect(next).toHaveBeenCalled();

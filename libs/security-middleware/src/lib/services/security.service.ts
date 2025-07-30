@@ -95,9 +95,11 @@ export class SecurityService {
       ipWhitelist: {
         whitelist: (this.configService.get('IP_WHITELIST', '') || '')
           .split(',')
+          .map((ip: string) => ip.trim())
           .filter(Boolean),
         blacklist: (this.configService.get('IP_BLACKLIST', '') || '')
           .split(',')
+          .map((ip: string) => ip.trim())
           .filter(Boolean),
         trustProxy: true,
       },
@@ -365,8 +367,8 @@ export class SecurityService {
   private getClientIP(req: SecurityRequest): string {
     if (this.config.ipWhitelist?.trustProxy) {
       return (
-        (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
-        (req.headers['x-real-ip'] as string) ||
+        (req.headers?.['x-forwarded-for'] as string)?.split(',')[0] ||
+        (req.headers?.['x-real-ip'] as string) ||
         req.connection?.remoteAddress ||
         req.socket?.remoteAddress ||
         req.ip ||
@@ -513,7 +515,7 @@ export class SecurityService {
       clientIP,
       country,
       timestamp: new Date().toISOString(),
-      userAgent: req?.headers['user-agent'],
+      userAgent: req?.headers?.['user-agent'],
     });
 
     try {
@@ -553,7 +555,7 @@ export class SecurityService {
     // and flag rapid changes as anomalies
 
     // For now, just detect if the user agent suggests mobile but location is datacenter
-    const userAgent = (req.headers['user-agent'] as string) || '';
+    const userAgent = (req.headers?.['user-agent'] as string) || '';
     const isMobile = /Mobile|Android|iPhone|iPad/.test(userAgent);
 
     // Check if it's a known datacenter/hosting provider range
@@ -576,8 +578,8 @@ export class SecurityService {
       JSON.stringify(req.body || {}),
       JSON.stringify(req.query || {}),
       JSON.stringify(req.params || {}),
-      req.headers['user-agent'] || '',
-      req.headers['referer'] || '',
+      req.headers?.['user-agent'] || '',
+      req.headers?.['referer'] || '',
     ];
 
     const maliciousPatterns = [

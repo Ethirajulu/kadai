@@ -215,10 +215,10 @@ export class SecurityDashboardService implements OnModuleInit, OnModuleDestroy {
 
     const overview = {
       totalEvents:
-        metrics.eventCounts[SecurityEventType.LOGIN_SUCCESS] +
-          metrics.eventCounts[SecurityEventType.LOGIN_FAILURE] +
-          metrics.eventCounts[SecurityEventType.RATE_LIMIT_EXCEEDED] +
-          metrics.eventCounts[SecurityEventType.IP_BLOCKED] || 0,
+        (metrics.eventCounts[SecurityEventType.LOGIN_SUCCESS] || 0) +
+          (metrics.eventCounts[SecurityEventType.LOGIN_FAILURE] || 0) +
+          (metrics.eventCounts[SecurityEventType.RATE_LIMIT_EXCEEDED] || 0) +
+          (metrics.eventCounts[SecurityEventType.IP_BLOCKED] || 0),
       activeAlerts: activeAlerts.length,
       threatsDetected: metrics.threatsDetected,
       systemHealth: this.calculateSystemHealth(metrics, activeAlerts),

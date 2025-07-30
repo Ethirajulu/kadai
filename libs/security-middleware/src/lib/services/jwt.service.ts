@@ -486,55 +486,50 @@ export class JWTService implements OnModuleInit, OnModuleDestroy {
    * Decode token without verification (for information only)
    */
   decodeToken(token: string): UnsafeDecodedToken | null {
-    try {
-      const decoded = this.jwtService.decode(token);
-      if (!decoded || typeof decoded !== 'object') {
-        return null;
-      }
-      
-      // Handle both complete JWT structure and direct payload
-      if (isValidDecodedStructure(decoded)) {
-        // Full JWT structure
-        const fullDecoded = decoded;
-        const payload = fullDecoded.payload as Record<string, unknown> | undefined;
-        const safePayload = payload || {};
-        return {
-          header: fullDecoded.header as { alg?: string; typ?: string; [key: string]: unknown },
-          payload: safePayload,
-          signature: fullDecoded.signature,
-          // Direct access properties with safe extraction
-          sub: safeStringExtract(safePayload.sub),
-          id: safeStringExtract(safePayload.id),
-          email: safeStringExtract(safePayload.email),
-          role: safeStringExtract(safePayload.role),
-          name: safeStringExtract(safePayload.name),
-          jti: safeStringExtract(safePayload.jti),
-          exp: safeNumberExtract(safePayload.exp),
-          iat: safeNumberExtract(safePayload.iat),
-          iss: safeStringExtract(safePayload.iss),
-          aud: safeStringExtract(safePayload.aud),
-        };
-      } else {
-        // Direct payload
-        const payload = decoded as Record<string, unknown>;
-        return {
-          payload,
-          // Direct access properties with safe extraction
-          sub: safeStringExtract(payload.sub),
-          id: safeStringExtract(payload.id),
-          email: safeStringExtract(payload.email),
-          role: safeStringExtract(payload.role),
-          name: safeStringExtract(payload.name),
-          jti: safeStringExtract(payload.jti),
-          exp: safeNumberExtract(payload.exp),
-          iat: safeNumberExtract(payload.iat),
-          iss: safeStringExtract(payload.iss),
-          aud: safeStringExtract(payload.aud),
-        };
-      }
-    } catch (error) {
-      this.logger.warn('Failed to decode token', error);
+    const decoded = this.jwtService.decode(token);
+    if (!decoded || typeof decoded !== 'object') {
       return null;
+    }
+    
+    // Handle both complete JWT structure and direct payload
+    if (isValidDecodedStructure(decoded)) {
+      // Full JWT structure
+      const fullDecoded = decoded;
+      const payload = fullDecoded.payload as Record<string, unknown> | undefined;
+      const safePayload = payload || {};
+      return {
+        header: fullDecoded.header as { alg?: string; typ?: string; [key: string]: unknown },
+        payload: safePayload,
+        signature: fullDecoded.signature,
+        // Direct access properties with safe extraction
+        sub: safeStringExtract(safePayload.sub),
+        id: safeStringExtract(safePayload.id),
+        email: safeStringExtract(safePayload.email),
+        role: safeStringExtract(safePayload.role),
+        name: safeStringExtract(safePayload.name),
+        jti: safeStringExtract(safePayload.jti),
+        exp: safeNumberExtract(safePayload.exp),
+        iat: safeNumberExtract(safePayload.iat),
+        iss: safeStringExtract(safePayload.iss),
+        aud: safeStringExtract(safePayload.aud),
+      };
+    } else {
+      // Direct payload
+      const payload = decoded as Record<string, unknown>;
+      return {
+        payload,
+        // Direct access properties with safe extraction
+        sub: safeStringExtract(payload.sub),
+        id: safeStringExtract(payload.id),
+        email: safeStringExtract(payload.email),
+        role: safeStringExtract(payload.role),
+        name: safeStringExtract(payload.name),
+        jti: safeStringExtract(payload.jti),
+        exp: safeNumberExtract(payload.exp),
+        iat: safeNumberExtract(payload.iat),
+        iss: safeStringExtract(payload.iss),
+        aud: safeStringExtract(payload.aud),
+      };
     }
   }
 

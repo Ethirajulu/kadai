@@ -426,7 +426,19 @@ describe('JWTService', () => {
       const result = service.decodeToken(mockToken);
 
       expect(jwtService.decode).toHaveBeenCalledWith(mockToken);
-      expect(result).toEqual(mockPayload);
+      expect(result).toEqual({
+        payload: mockPayload,
+        sub: mockUser.id,
+        id: '',
+        email: mockUser.email,
+        role: mockUser.role,
+        name: '',
+        jti: '',
+        exp: undefined,
+        iat: undefined,
+        iss: '',
+        aud: '',
+      });
     });
 
     it('should get token expiration time', () => {

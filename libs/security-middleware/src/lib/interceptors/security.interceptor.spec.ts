@@ -132,13 +132,15 @@ describe('SecurityInterceptor', () => {
       });
 
       expect(securityService.logSecurityEvent).toHaveBeenCalledWith(
-        'UNAUTHORIZED_ACCESS',
+        'ACCESS_DENIED',
+        'HIGH',
+        'Unauthorized access attempt',
+        mockRequest,
         {
           path: '/api/test',
           method: 'GET',
           error: 'Invalid token',
-        },
-        mockRequest
+        }
       );
     });
 
@@ -163,13 +165,15 @@ describe('SecurityInterceptor', () => {
       });
 
       expect(securityService.logSecurityEvent).toHaveBeenCalledWith(
-        'FORBIDDEN_ACCESS',
+        'PERMISSION_DENIED',
+        'HIGH',
+        'Forbidden access attempt',
+        mockRequest,
         {
           path: '/api/test',
           method: 'GET',
           error: 'Access denied',
-        },
-        mockRequest
+        }
       );
     });
 
@@ -194,11 +198,13 @@ describe('SecurityInterceptor', () => {
 
       expect(securityService.logSecurityEvent).toHaveBeenCalledWith(
         'RATE_LIMIT_EXCEEDED',
+        'MEDIUM',
+        'Rate limit exceeded',
+        mockRequest,
         {
           path: '/api/test',
           method: 'GET',
-        },
-        mockRequest
+        }
       );
     });
 
@@ -659,11 +665,13 @@ describe('SecurityInterceptor', () => {
 
       expect(securityService.logSecurityEvent).toHaveBeenCalledWith(
         'RATE_LIMIT_EXCEEDED',
+        'MEDIUM',
+        'Rate limit exceeded',
+        mockRequest,
         {
           path: '/api/test',
           method: 'GET',
-        },
-        mockRequest
+        }
       );
     });
 
