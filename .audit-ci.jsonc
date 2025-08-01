@@ -1,0 +1,26 @@
+{
+  // Audit CI configuration for vulnerability scanning
+  "low": false,
+  "moderate": false,
+  "high": true,
+  "critical": true,
+  "report-type": "summary",
+  "allowlist": [
+    // Add specific vulnerabilities to allow if they are false positives
+    // Example: "1234567890"
+  ],
+  "advisories": [
+    // Specific advisory IDs to allowlist
+  ],
+  "registry": "https://registry.npmjs.org/",
+  "retry": {
+    "count": 5,
+    "factor": 2,
+    "minTimeout": 1000,
+    "maxTimeout": 60000,
+    "randomize": true
+  },
+  "extra-args": [
+    "--audit-level=moderate"
+  ]
+}

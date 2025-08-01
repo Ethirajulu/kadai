@@ -70,18 +70,6 @@
       "path": "./libs/shared-utils"
     },
     {
-      "path": "./libs/database-config"
-    },
-    {
-      "path": "./libs/shared-utils"
-    },
-    {
-      "path": "./libs/shared-types"
-    },
-    {
-      "path": "./libs/shared-utils"
-    },
-    {
       "path": "./libs/test-db-config"
     },
     {
@@ -89,6 +77,9 @@
     },
     {
       "path": "./libs/security-middleware"
+    },
+    {
+      "path": "./libs/vulnerability-assessment"
     }
   ]
 }

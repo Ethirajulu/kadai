@@ -251,3 +251,266 @@ export type ILogRetentionConfig = LogRetentionConfig;
 export type IRetentionStats = RetentionStats;
 export type IStorageUsageStats = StorageUsageStats;
 export type IConnectionHealth = ConnectionHealth;
+
+/**
+ * Vulnerability assessment severity levels
+ */
+export enum SeverityLevel {
+  CRITICAL = 'critical',
+  HIGH = 'high',
+  MEDIUM = 'medium',
+  LOW = 'low',
+}
+
+/**
+ * Vulnerability scan types
+ */
+export enum ScanType {
+  DEPENDENCY = 'dependency',
+  INFRASTRUCTURE = 'infrastructure',
+  SAST = 'sast',
+}
+
+/**
+ * Vulnerability status types
+ */
+export enum VulnerabilityStatus {
+  OPEN = 'open',
+  FIXED = 'fixed',
+  ACCEPTED = 'accepted',
+  FALSE_POSITIVE = 'false_positive',
+  MITIGATED = 'mitigated'
+}
+
+/**
+ * Vulnerability assessment configuration
+ */
+export interface VulnerabilityAssessmentConfig {
+  enabled: boolean;
+  scanning: {
+    dependencies: {
+      enabled: boolean;
+      schedule: string;
+      failOnHigh: boolean;
+      failOnCritical: boolean;
+    };
+    infrastructure: {
+      enabled: boolean;
+      schedule: string;
+      targets: string[];
+      portRange: string;
+    };
+    sast: {
+      enabled: boolean;
+      schedule: string;
+      tools: string[];
+    };
+  };
+  reporting: {
+    format: string;
+    outputDir: string;
+    retentionDays: number;
+  };
+  thresholds: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  notifications: {
+    enabled: boolean;
+    webhook?: string;
+    email: string[];
+  };
+}
+
+/**
+ * Vulnerability finding interface
+ */
+export interface VulnerabilityFinding {
+  id: string;
+  scanId?: string;
+  title: string;
+  description: string;
+  severity: SeverityLevel;
+  cvss: number;
+  cve?: string | null;
+  package?: string | null;
+  version?: string | null;
+  fixedVersion?: string | null;
+  source: string;
+  scanType: ScanType;
+  status: VulnerabilityStatus;
+  firstDetected: Date;
+  lastSeen: Date;
+  location?: {
+    file?: string;
+    line?: number;
+    host?: string;
+    port?: string;
+    vulnerability?: string;
+  };
+  remediation?: string;
+  references?: string[];
+}
+
+/**
+ * Vulnerability scan interface
+ */
+export interface VulnerabilityScan {
+  id: string;
+  scanType: ScanType;
+  status: string;
+  startTime: Date;
+  endTime?: Date;
+  findingsCount?: number;
+  config: VulnerabilityAssessmentConfig;
+  error?: string;
+}
+
+/**
+ * Vulnerability report interface
+ */
+export interface VulnerabilityReport {
+  scanId: string;
+  scanType: ScanType;
+  startTime: Date;
+  endTime: Date;
+  status: string;
+  summary: {
+    total: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  findings: VulnerabilityFinding[];
+  recommendations: string[];
+}
+
+/**
+ * Input validation classes for vulnerability scanning
+ */
+export class ScanTargetValidation {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[a-zA-Z0-9.-]+$/, {
+    message: 'Target must contain only alphanumeric characters, dots, and hyphens',
+  })
+  target!: string;
+}
+
+export class PortRangeValidation {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^(\d{1,5})-(\d{1,5})$|^\d{1,5}$/, {
+    message: 'Port range must be in format "1-1000" or "80"',
+  })
+  portRange!: string;
+}
+
+export class ScanParametersValidation {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScanTargetValidation)
+  targets!: ScanTargetValidation[];
+
+  @ValidateNested()
+  @Type(() => PortRangeValidation)
+  portRange!: PortRangeValidation;
+
+  @IsNumber()
+  @Min(1)
+  @Max(3600) // Max 1 hour timeout
+  timeout!: number;
+}
+
+/**
+ * Scan result processing interfaces
+ */
+export interface NpmAuditResult {
+  vulnerabilities: Record<string, NpmVulnerability>;
+  metadata: {
+    vulnerabilities: {
+      total: number;
+      critical: number;
+      high: number;
+      moderate: number;
+      low: number;
+    };
+  };
+}
+
+export interface NpmVulnerability {
+  severity: string;
+  via: Array<{
+    source?: number;
+    title?: string;
+    overview?: string;
+    cvss?: {
+      score: number;
+    };
+    cve?: string;
+    range?: string;
+  }>;
+  fixAvailable: boolean | string;
+}
+
+export interface SnykResult {
+  vulnerabilities: SnykVulnerability[];
+}
+
+export interface SnykVulnerability {
+  id: string;
+  title: string;
+  description: string;
+  severity: string;
+  cvssScore?: number;
+  identifiers?: {
+    CVE?: string[];
+  };
+  packageName: string;
+  version: string;
+  fixedIn?: string[];
+}
+
+export interface SnykCodeResult {
+  runs: Array<{
+    results: SnykCodeFinding[];
+  }>;
+}
+
+export interface SnykCodeFinding {
+  ruleId: string;
+  level: string;
+  message: {
+    text: string;
+  };
+  locations?: Array<{
+    physicalLocation?: {
+      artifactLocation?: {
+        uri?: string;
+      };
+      region?: {
+        startLine?: number;
+      };
+    };
+  }>;
+}
+
+/**
+ * Command execution validation
+ */
+export class CommandValidation {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[a-zA-Z0-9\s\-._]+$/, {
+    message: 'Command must contain only safe characters',
+  })
+  command!: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @Matches(/^[a-zA-Z0-9\s\-._=]+$/, { each: true, message: 'Arguments must contain only safe characters' })
+  args!: string[];
+}
