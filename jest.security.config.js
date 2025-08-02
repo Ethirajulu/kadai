@@ -10,6 +10,7 @@ module.exports = {
     '<rootDir>/apps/**/security/**/*.spec.ts',
     '<rootDir>/**/*.security.test.ts',
     '<rootDir>/security-tests/**/*.spec.ts',
+    '<rootDir>/security-tests/**/*.test.ts',
   ],
   
   // Test environment
@@ -108,6 +109,20 @@ module.exports = {
     '/coverage/',
   ],
   
+  // Ignore patterns to avoid haste naming collisions
+  modulePathIgnorePatterns: [
+    '<rootDir>/dist/',
+    '<rootDir>/tmp/',
+    '<rootDir>/coverage/',
+    '<rootDir>/.nx/',
+    '<rootDir>/apps/*/dist/',
+  ],
+  
+  // Haste configuration to resolve naming collisions
+  haste: {
+    enableSymlinks: false,
+  },
+  
   // Custom reporters for security test results
   reporters: ['default'],
   
@@ -117,13 +132,6 @@ module.exports = {
   // Cache
   cache: false, // Disable cache for security tests to ensure fresh runs
   
-  // Module path ignore patterns
-  modulePathIgnorePatterns: [
-    '<rootDir>/dist/',
-    '<rootDir>/tmp/',
-    '<rootDir>/coverage/',
-    '<rootDir>/.nx/',
-  ],
   
   // Max workers (limit for security tests)
   maxWorkers: 2,

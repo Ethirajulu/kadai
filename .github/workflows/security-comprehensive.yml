@@ -1,0 +1,306 @@
+name: Comprehensive Security Testing Pipeline
+
+on:
+  push:
+    branches: [ main, develop, security-* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_penetration_tests:
+        description: 'Skip OWASP ZAP penetration tests'
+        required: false
+        default: false
+        type: boolean
+      security_level:
+        description: 'Security testing level'
+        required: false
+        default: 'standard'
+        type: choice
+        options:
+        - minimal
+        - standard
+        - comprehensive
+
+env:
+  NODE_VERSION: 22.16.0
+  PYTHON_VERSION: 3.11
+  PNPM_VERSION: 8.15.6
+
+jobs:
+  security-tests:
+    name: Security Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kadai_test_security
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup test databases
+        run: |
+          PGPASSWORD=postgres createdb -h localhost -U postgres kadai_test_security_user || true
+          PGPASSWORD=postgres createdb -h localhost -U postgres kadai_test_security_product || true
+          PGPASSWORD=postgres createdb -h localhost -U postgres kadai_test_security_order || true
+
+      - name: Run security test suite
+        run: |
+          export NODE_ENV=test
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kadai_test_security
+          export REDIS_URL=redis://localhost:6379
+          npx jest --config=jest.security.config.js --coverage --verbose
+        timeout-minutes: 15
+        env:
+          JWT_SECRET: test-jwt-secret-for-security-tests
+          ENCRYPTION_KEY: test-encryption-key-32-characters
+
+      - name: Run security regression tests
+        run: |
+          npx jest security-tests/regression/security-regression.test.ts --verbose
+        timeout-minutes: 10
+        env:
+          NODE_ENV: test
+
+      - name: Run security performance benchmarks
+        run: |
+          npx jest security-tests/performance/security-performance.test.ts --verbose
+        timeout-minutes: 10
+        env:
+          NODE_ENV: test
+
+      - name: Upload security test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-test-reports
+          path: |
+            coverage/
+            security-reports/
+          retention-days: 30
+
+  penetration-testing:
+    name: OWASP ZAP Penetration Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: ${{ github.event_name != 'pull_request' && inputs.skip_penetration_tests != 'true' }}
+    needs: [security-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kadai_pentest
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Java for OWASP ZAP
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Download OWASP ZAP
+        run: |
+          wget -q https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2_14_0_unix.sh
+          chmod +x ZAP_2_14_0_unix.sh
+          sudo ./ZAP_2_14_0_unix.sh -q
+          sudo ln -sf /opt/zaproxy/zap.sh /usr/local/bin/zap.sh
+        timeout-minutes: 10
+
+      - name: Build test application
+        run: |
+          export NODE_ENV=test
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kadai_pentest
+          pnpm run build:affected
+        timeout-minutes: 10
+
+      - name: Start test services
+        run: |
+          export NODE_ENV=test
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kadai_pentest
+          # Start services in background for penetration testing
+          npx nx serve user-service --configuration=test &
+          npx nx serve api-gateway --configuration=test &
+          # Wait for services to start
+          sleep 30
+        env:
+          JWT_SECRET: test-jwt-secret-for-pentesting
+          PORT_USER_SERVICE: 3001
+          PORT_API_GATEWAY: 3000
+
+      - name: Wait for services to be ready
+        run: |
+          # Wait for services to be responsive
+          timeout 60 bash -c 'until curl -sf http://localhost:3000/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+
+      - name: Run OWASP ZAP penetration tests
+        run: |
+          npx tsx security-tests/penetration/run-zap-tests.ts
+        timeout-minutes: 30
+        env:
+          ZAP_PATH: /opt/zaproxy/zap.sh
+          TARGET_BASE_URL: http://localhost:3000
+          SECURITY_LEVEL: ${{ inputs.security_level || 'standard' }}
+
+      - name: Upload penetration test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: penetration-test-reports
+          path: |
+            security-reports/penetration/
+          retention-days: 30
+
+  security-compliance:
+    name: Security Compliance & Reporting
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [security-tests]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download all security reports
+        uses: actions/download-artifact@v4
+        with:
+          path: ./security-artifacts
+
+      - name: Generate security compliance report
+        run: |
+          npx tsx scripts/generate-security-report.ts
+        timeout-minutes: 5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_SECURITY_WEBHOOK }}
+
+      - name: Upload comprehensive security report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: comprehensive-security-report
+          path: |
+            security-reports/comprehensive-report-*.md
+            security-reports/security-dashboard.json
+          retention-days: 90
+
+      - name: Security Gate Check
+        run: |
+          node scripts/security-gate-check.js
+        timeout-minutes: 5
+        env:
+          SECURITY_THRESHOLD_HIGH: 0
+          SECURITY_THRESHOLD_CRITICAL: 0
+          FAIL_ON_HIGH_SEVERITY: true
+
+      - name: Comment security results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            try {
+              const reportPath = path.join('./security-reports', 'pr-security-summary.md');
+              if (fs.existsSync(reportPath)) {
+                const report = fs.readFileSync(reportPath, 'utf8');
+                
+                github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: report
+                });
+              }
+            } catch (error) {
+              console.log('Could not post security report to PR:', error.message);
+            }
+
+      - name: Notify security team on failures
+        if: failure() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#security-alerts'
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_SECURITY_WEBHOOK }}

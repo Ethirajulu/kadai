@@ -47,7 +47,7 @@ process.on('uncaughtException', (error) => {
 });
 
 // Security test helper functions
-global.createSecurityTestModule = async (
+(global as any).createSecurityTestModule = async (
   providers: any[] = [],
   imports: any[] = []
 ) => {
@@ -87,7 +87,7 @@ global.createSecurityTestModule = async (
 };
 
 // Security test data factories
-global.createMockSecurityRequest = (overrides: any = {}) => {
+(global as any).createMockSecurityRequest = (overrides: any = {}) => {
   return {
     headers: {
       'user-agent': 'test-agent',
@@ -108,7 +108,7 @@ global.createMockSecurityRequest = (overrides: any = {}) => {
   };
 };
 
-global.createMockSecurityResponse = (overrides: any = {}) => {
+(global as any).createMockSecurityResponse = (overrides: any = {}) => {
   return {
     setHeader: jest.fn(),
     set: jest.fn(),
@@ -121,7 +121,7 @@ global.createMockSecurityResponse = (overrides: any = {}) => {
   };
 };
 
-global.createMockJWTPayload = (overrides: any = {}) => {
+(global as any).createMockJWTPayload = (overrides: any = {}) => {
   const now = Math.floor(Date.now() / 1000);
   return {
     sub: 'test-user-id',
@@ -146,7 +146,7 @@ global.createMockJWTPayload = (overrides: any = {}) => {
 };
 
 // Security test constants
-global.SECURITY_TEST_CONSTANTS = {
+(global as any).SECURITY_TEST_CONSTANTS = {
   VALID_JWT_TOKEN:
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlIjoidXNlciIsImlhdCI6MTUxNjIzOTAyMn0.test',
   EXPIRED_JWT_TOKEN:
@@ -177,27 +177,27 @@ global.SECURITY_TEST_CONSTANTS = {
 };
 
 // Security test utilities
-global.waitForRateLimit = (ms = 1000) => {
+(global as any).waitForRateLimit = (ms = 1000) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-global.generateMaliciousPayload = (type: string) => {
-  return global.SECURITY_TEST_CONSTANTS.MALICIOUS_PAYLOADS[type] || type;
+(global as any).generateMaliciousPayload = (type: string) => {
+  return (global as any).SECURITY_TEST_CONSTANTS.MALICIOUS_PAYLOADS[type] || type;
 };
 
-global.SecurityTestUtils = SecurityTestUtils;
+(global as any).SecurityTestUtils = SecurityTestUtils;
 
-global.assertSecurityHeaders = (response: any) => {
+(global as any).assertSecurityHeaders = (response: any) => {
   const headers = response.headers || {};
 
   // Check required security headers
-  global.SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.REQUIRED.forEach((header) => {
+  (global as any).SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.REQUIRED.forEach((header: string) => {
     expect(headers[header]).toBeDefined();
   });
 
   // Check forbidden headers are not present
-  global.SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.FORBIDDEN.forEach(
-    (header) => {
+  (global as any).SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.FORBIDDEN.forEach(
+    (header: string) => {
       expect(headers[header]).toBeUndefined();
     }
   );
@@ -216,8 +216,8 @@ expect.extend({
   toHaveSecurityHeaders(received) {
     const headers = received.headers || {};
     const requiredHeaders =
-      global.SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.REQUIRED;
-    const hasAllHeaders = requiredHeaders.every((header) => headers[header]);
+      (global as any).SECURITY_TEST_CONSTANTS.SECURITY_HEADERS.REQUIRED;
+    const hasAllHeaders = requiredHeaders.every((header: string) => headers[header]);
 
     return {
       message: () =>
@@ -250,41 +250,4 @@ expect.extend({
 
 console.log('🔒 Security test setup completed');
 
-// Export types for TypeScript
-declare global {
-  var createSecurityTestModule: (
-    providers?: any[],
-    imports?: any[]
-  ) => Promise<TestingModule>;
-  var createMockSecurityRequest: (overrides?: any) => any;
-  var createMockSecurityResponse: (overrides?: any) => any;
-  var createMockJWTPayload: (overrides?: any) => any;
-  var SECURITY_TEST_CONSTANTS: {
-    VALID_JWT_TOKEN: string;
-    EXPIRED_JWT_TOKEN: string;
-    MALFORMED_JWT_TOKEN: string;
-    MALICIOUS_PAYLOADS: Record<string, any>;
-    RATE_LIMIT_TEST_ROUTES: string[];
-    SECURITY_HEADERS: {
-      REQUIRED: string[];
-      FORBIDDEN: string[];
-    };
-  };
-  var waitForRateLimit: (ms?: number) => Promise<void>;
-  var generateMaliciousPayload: (type: string) => string;
-  var assertSecurityHeaders: (response: any) => void;
-  var SecurityTestUtils: typeof import('./utils/security-test-utils').SecurityTestUtils;
-}
-
-// Jest matcher extensions
-declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace jest {
-    interface Matchers<R> {
-      toBeSecurelyConfigured(): R;
-      toHaveSecurityHeaders(): R;
-      toBeValidJWT(): R;
-      toBeRateLimited(): R;
-    }
-  }
-}
+// Type declarations are handled in security-tests/types/global.d.ts

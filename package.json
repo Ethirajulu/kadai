@@ -35,8 +35,16 @@
     "security:monitor": "snyk monitor",
     "security:audit": "pnpm audit",
     "security:audit:fix": "pnpm audit --fix",
+    "security:pentest": "npx tsx security-tests/penetration/run-zap-tests.ts",
+    "security:regression": "jest security-tests/regression/security-regression.test.ts",
+    "security:performance": "jest security-tests/performance/security-performance.test.ts",
+    "security:gate": "node scripts/security-gate-check.js",
+    "security:report": "npx tsx scripts/generate-security-report.ts",
+    "security:full": "pnpm run security:scan && pnpm run test:security && pnpm run security:report",
     "lint:security": "eslint . --ext .ts,.js,.tsx,.jsx --config .eslintrc-security.js",
-    "test:security": "jest --config jest.security.config.js"
+    "test:security": "jest --config jest.security.config.js",
+    "test:security:watch": "jest --config jest.security.config.js --watch",
+    "test:security:coverage": "jest --config jest.security.config.js --coverage"
   },
   "prisma": {
     "seed": "npx ts-node libs/database-config/src/postgresql/seed.ts"

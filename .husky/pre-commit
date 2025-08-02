@@ -1,0 +1,59 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Pre-commit security checks for Kadai project
+
+echo "🔒 Running pre-commit security checks..."
+
+# Run security linting
+echo "📝 Running security linting..."
+pnpm run lint:security || {
+  echo "❌ Security linting failed. Please fix security issues before committing."
+  exit 1
+}
+
+# Run quick security scan (skip time-intensive scans)
+echo "🔍 Running quick security scan..."
+./scripts/security-scan.sh --skip-containers --skip-licenses || {
+  echo "⚠️ Security scan found issues. Check reports and address critical/high severity issues."
+  echo "💡 Use 'pnpm run security:full' for complete analysis"
+  # Don't fail on warnings, but alert the developer
+}
+
+# Run security tests (fast subset)
+echo "🧪 Running security tests..."
+pnpm run security:regression || {
+  echo "❌ Security regression tests failed. Please fix failing tests before committing."
+  exit 1
+}
+
+# Check for secrets in staged files
+echo "🔐 Checking for secrets in staged files..."
+staged_files=$(git diff --cached --name-only)
+if [ -n "$staged_files" ]; then
+  # Use a simple grep pattern to catch common secrets
+  for file in $staged_files; do
+    if [ -f "$file" ]; then
+      # Check for common secret patterns
+      if grep -i -E "(password|secret|key|token|api_key|private_key)\s*=\s*['\"][^'\"]+['\"]" "$file" > /dev/null 2>&1; then
+        echo "⚠️ Potential secret detected in $file"
+        echo "💡 Please ensure no actual secrets are committed. Use environment variables or secret management."
+      fi
+      
+      # Check for JWT tokens
+      if grep -E "eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+" "$file" > /dev/null 2>&1; then
+        echo "⚠️ Potential JWT token detected in $file"
+        echo "💡 Please ensure no actual JWT tokens are committed."
+      fi
+      
+      # Check for AWS keys
+      if grep -E "(AKIA[0-9A-Z]{16}|aws_access_key_id|aws_secret_access_key)" "$file" > /dev/null 2>&1; then
+        echo "❌ AWS credentials detected in $file"
+        echo "🚫 AWS credentials must not be committed. Use AWS IAM roles or environment variables."
+        exit 1
+      fi
+    fi
+  done
+fi
+
+echo "✅ Pre-commit security checks completed successfully!"
